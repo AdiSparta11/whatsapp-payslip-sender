@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Payslip Sender — M/S. FRIENDS ENTERPRISE</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+
+<div class="container">
+    <!-- Header -->
+    <header class="app-header">
+        <div class="brand-badge">
+            <span class="dot"></span> M/S. FRIENDS ENTERPRISE
+        </div>
+        <h1 class="app-title">WhatsApp Payslip Dispatcher</h1>
+        <p class="app-subtitle">Upload monthly wage sheet & contact master to generate and deliver PDF payslips</p>
+    </header>
+
+    <!-- Meta API Config Banner -->
+    <div class="config-banner">
+        <div class="config-status">
+            <div class="status-indicator" th:classappend="${apiConfigured} ? 'online' : 'offline'"></div>
+            <div class="config-info">
+                <h4 th:text="${apiConfigured} ? 'Meta WhatsApp Cloud API Connected' : 'Meta API Credentials Not Configured'">Meta API Status</h4>
+                <p th:text="${apiConfigured} ? 'Phone Number ID: ' + ${phoneNumberId} : 'App will run in Test / Dry-Run Mode. Update application.properties with your Meta API Token for live sending.'">Status details</p>
+            </div>
+        </div>
+        <span class="badge" th:classappend="${apiConfigured} ? 'status-sent' : 'status-skipped'"
+              th:text="${apiConfigured} ? 'LIVE MODE' : 'DRY-RUN / TEST'">MODE</span>
+    </div>
+
+    <!-- Error Alert -->
+    <div th:if="${errorMessage}" class="alert-error">
+        ⚠️ <strong>Error:</strong> <span th:text="${errorMessage}">Error details</span>
+    </div>
+
+    <!-- Upload Card Form -->
+    <div class="card">
+        <h2 class="card-title">📤 Step 1: Upload Files & Dispatch</h2>
+        
+        <form th:action="@{/dispatch}" method="post" enctype="multipart/form-data" id="dispatchForm" onsubmit="showLoading()">
+            <div class="upload-grid">
+                <!-- Wage Sheet Dropzone -->
+                <div class="file-dropzone" onclick="document.getElementById('wageSheet').click()">
+                    <div class="dropzone-icon">📊</div>
+                    <div class="dropzone-label">Wage Register Excel</div>
+                    <div class="dropzone-hint">Upload GR Friends Pay Sheet (.xlsx)</div>
+                    <input type="file" id="wageSheet" name="wageSheet" class="file-input" accept=".xlsx,.xls" required onchange="updateFileName(this, 'wageSheetName')">
+                    <div id="wageSheetName" class="file-name-display"></div>
+                </div>
+
+                <!-- Contact Master Dropzone -->
+                <div class="file-dropzone" onclick="document.getElementById('contactMaster').click()">
+                    <div class="dropzone-icon">📇</div>
+                    <div class="dropzone-label">Contact Master Excel</div>
+                    <div class="dropzone-hint">Upload UAN to WhatsApp Numbers (.xlsx / .csv)</div>
+                    <input type="file" id="contactMaster" name="contactMaster" class="file-input" accept=".xlsx,.xls,.csv" required onchange="updateFileName(this, 'contactMasterName')">
+                    <div id="contactMasterName" class="file-name-display"></div>
+                </div>
+            </div>
+
+            <div class="options-row">
+                <label class="checkbox-group">
+                    <input type="checkbox" name="dryRun" value="true" th:checked="${!apiConfigured}">
+                    <span>Dry-Run Mode (Test matching & PDF generation without sending WhatsApp messages)</span>
+                </label>
+
+                <div class="caption-group">
+                    <input type="text" name="customCaption" class="caption-input" placeholder="Optional message caption (e.g. Payslip for July 2026)">
+                </div>
+            </div>
+
+            <button type="submit" class="btn-submit">
+                <span>🚀 Generate PDFs & Dispatch via WhatsApp</span>
+            </button>
+        </form>
+    </div>
+
+    <!-- Results Section -->
+    <div th:if="${dispatchCompleted}">
+        <!-- Summary Stat Cards -->
+        <div class="summary-grid">
+            <div class="stat-card">
+                <div class="stat-number" th:text="${totalEmployees}">0</div>
+                <div class="stat-label">Total Employees</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number stat-sent" th:text="${sentCount}">0</div>
+                <div class="stat-label">Sent Successfully</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number stat-skipped" th:text="${skippedNoContactCount + skippedNoPhoneCount}">0</div>
+                <div class="stat-label">Skipped (No Contact)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number stat-failed" th:text="${failedCount}">0</div>
+                <div class="stat-label">Failed / Errors</div>
+            </div>
+        </div>
+
+        <!-- Detailed Results Table -->
+        <div class="card">
+            <h2 class="card-title">
+                📋 Dispatch Summary Report
+                <span th:if="${isDryRun}" class="badge status-skipped" style="margin-left: 0.5rem;">SIMULATED / DRY RUN</span>
+            </h2>
+
+            <div class="results-table-wrapper">
+                <table class="results-table">
+                    <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Employee Name</th>
+                        <th>UAN Number</th>
+                        <th>WhatsApp Phone</th>
+                        <th>Dispatch Status</th>
+                        <th>Details</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="r : ${results}">
+                        <td th:text="${r.index}">1</td>
+                        <td style="font-weight: 600;" th:text="${r.employeeName}">RAJU DAS</td>
+                        <td th:text="${r.uan}">100123456789</td>
+                        <td th:text="${r.phone != null ? r.phone : '-'}">+918768136662</td>
+                        <td>
+                            <span class="badge" th:classappend="${r.statusCssClass}" th:text="${r.statusLabel}">✅ Sent</span>
+                        </td>
+                        <td style="color: var(--text-secondary); font-size: 0.85rem;"
+                            th:text="${r.errorMessage != null ? r.errorMessage : (r.pdfGenerated ? 'PDF generated & delivered via Meta Cloud API' : '-')}">Details</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Spinner Overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+    <div class="spinner"></div>
+    <div class="loading-text">Processing Dispatch Loop...</div>
+    <div class="loading-subtext">Generating PDFs, uploading to Meta API, and delivering WhatsApp messages. Please wait.</div>
+</div>
+
+<script>
+    function updateFileName(input, targetId) {
+        const display = document.getElementById(targetId);
+        if (input.files && input.files[0]) {
+            display.textContent = "Selected: " + input.files[0].name;
+        } else {
+            display.textContent = "";
+        }
+    }
+
+    function showLoading() {
+        document.getElementById('loadingOverlay').style.display = 'flex';
+    }
+</script>
+
+</body>
+</html>
