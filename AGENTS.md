@@ -17,19 +17,18 @@ A Spring Boot web application that parses statutory Form XVII Excel wage registe
    - Includes runtime sanity checking (`Gross - Deductions == Net Paid`).
 2. **`PdfGeneratorService.java`**:
    - Generates OpenPDF payslips itemizing earnings and deductions line items into balanced table rows.
-3. **`WhatsAppService.java` & `WhatsAppConfig.java`**:
-   - Handles HTTP integration with Meta Cloud API (`v21.0`).
-   - Uses Meta-approved Template messages (`type: "template"`, default `monthly_payslip`) with document header (`media_id`) and body parameters (`{{1}}` name, `{{2}}` month, `{{3}}` year) for outbound business-initiated messaging outside 24h window.
-4. **Deployment Setup**:
+3. **`ZipService.java` & Batch Export**:
+   - Packages all or selected generated employee PDF payslips into a single downloadable `.zip` archive (`Payslips_JULY_2026.zip`).
+   - Supports full batch zip downloads and subset zip downloads for specific selected employee UANs.
+4. **Interactive Manual WhatsApp Dispatch Dashboard**:
+   - Builds `wa.me` click-to-chat links (`https://wa.me/<cleanPhone>?text=<encodedMessage>`) pre-filling recipient chat boxes.
+   - Configurable message text template (`Hello {name}, please find your payslip for {month} {year} attached.`).
+   - Persists sent row state in browser `localStorage` (`payslip_sent_{month}_{year}_{uan}`) with strikethrough styling and dynamic progress counter (`Sent X of Y`).
+   - Filter toggles (`All | Pending Only | Sent Only`).
+   - Prominently surfaces unmatched/skipped employees with specific reasons.
+5. **Deployment Setup**:
    - Multi-stage `Dockerfile` (Maven build + Alpine JRE runtime).
    - `render.yaml` for free one-click hosting on Render.com.
-
----
-
-## 🔑 Environment & Credentials Needed
-- `WHATSAPP_PHONE_NUMBER_ID`: Meta WhatsApp Phone Number ID
-- `WHATSAPP_ACCESS_TOKEN`: Meta Access Token / System User Permanent Token
-- `WHATSAPP_TEMPLATE_NAME`: Approved Meta Message Template name (default: `monthly_payslip`)
 
 ---
 
@@ -37,15 +36,14 @@ A Spring Boot web application that parses statutory Form XVII Excel wage registe
 - Fixed two-row header bug in `ExcelParserService`.
 - Expanded `Employee` model with itemized allowance fields.
 - Added synthetic 2-row header POI unit test (`ExcelParserServiceTest.java`).
-- Switched outbound WhatsApp dispatch to Meta approved Template messages (`sendPayslipTemplate`).
+- Pivoted to 100% human-driven manual WhatsApp dispatch dashboard & local ZIP export (`ZipService.java` & `ZipServiceTest.java`).
+- Added browser `localStorage` sent tracking, filter tabs, subset ZIP download, and pre-filled `wa.me` links.
 - Committed & pushed all changes to `main` branch on GitHub.
 
 ---
 
 ## 🎯 Current Status / Next Steps
-1. **Meta Template Approval (Blocking)**: Create and submit `monthly_payslip` in Meta WhatsApp Manager (Category: `Utility`, Header: `Document`). Wait for **APPROVED** status.
-2. **Full File Dry Run (`dryRun=true`)**: Process all 114 rows in dry-run mode and inspect `verifySalaryMathSanity` logs.
-3. **Phone Number Coverage Audit**: Audit matched phone count vs skipped ("No Contact") count.
-4. **Small Batch Live Test**: Send live test to 2-3 numbers (`dryRun=false`) to verify PDF appearance on mobile screens before triggering the full 114 batch.
-5. **Render.com Deployment**: Launch web app on Render.com free tier.
+1. **Local Usage / Render Deployment**: App is 100% complete and operational locally or on Render.com free tier.
+2. **Monthly Workflow**: Upload Excel registers $\rightarrow$ Download ZIP of 114 PDFs $\rightarrow$ Click `Open Chat` $\rightarrow$ Attach PDF & Send.
+
 
