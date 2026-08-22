@@ -42,6 +42,10 @@ A Spring Boot web application that parses statutory Form XVII Excel wage registe
 
 ---
 
-## 🎯 Current Status / Next Step
-- Meta Business Account setup & creating/approving `monthly_payslip` template in Meta dashboard.
-- Deployment to Render.com.
+## 🎯 Current Status / Next Steps
+1. **Meta Template Approval (Blocking)**: Create and submit `monthly_payslip` in Meta WhatsApp Manager (Category: `Utility`, Header: `Document`). Wait for **APPROVED** status.
+2. **Full File Dry Run (`dryRun=true`)**: Process all 114 rows in dry-run mode and inspect `verifySalaryMathSanity` logs.
+3. **Phone Number Coverage Audit**: Audit matched phone count vs skipped ("No Contact") count.
+4. **Small Batch Live Test**: Send live test to 2-3 numbers (`dryRun=false`) to verify PDF appearance on mobile screens before triggering the full 114 batch.
+5. **Render.com Deployment**: Launch web app on Render.com free tier.
+

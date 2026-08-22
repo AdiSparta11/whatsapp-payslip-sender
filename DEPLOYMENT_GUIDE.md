@@ -53,3 +53,25 @@ Share this link with your brother. He can bookmark it and use it every month to 
 - **SSL Encryption**: Automatic HTTPS secure connection.
 - **Zero Maintenance**: Auto-deploys whenever you push changes to GitHub.
 - **Auto-Sleep**: Sleeps after 15 mins of inactivity. When your brother opens the link each month, it takes ~30 seconds to wake up.
+
+---
+
+## 📋 Pre-Flight Readiness & Go-Live Checklist
+
+Before triggering a live monthly dispatch to all 114 employees:
+
+1. **Meta Message Template Approval (BLOCKING)**:
+   - Create template `monthly_payslip` in Meta WhatsApp Manager (Category: `Utility`, Header: `Document`, Body: `Hello {{1}}, your payslip for {{2}} {{3}} from M/S. FRIENDS ENTERPRISE is attached.`).
+   - Status MUST show **APPROVED** in Meta Dashboard before sending real messages.
+
+2. **Full File Dry Run (`dryRun=true`)**:
+   - Upload full 114-row Wage Sheet and Contact Master with `dryRun` enabled.
+   - Review results table in UI and inspect logs for any `verifySalaryMathSanity` pay discrepancy warnings.
+
+3. **Phone Number Coverage Audit**:
+   - Check how many of the 114 employees have matched WhatsApp phone numbers vs how many are flagged as skipped ("No Contact Master Match").
+
+4. **Small Batch Live Test (2–3 Employees)**:
+   - Send live (`dryRun=false`) to 2–3 test numbers (e.g. your own number + colleagues).
+   - Inspect the received PDF document on a mobile device to confirm formatting and figures before running the full 114-employee batch.
+
