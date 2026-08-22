@@ -17,6 +17,8 @@ A Spring Boot web application that parses statutory Form XVII Excel wage registe
    - Includes runtime sanity checking (`Gross - Deductions == Net Paid`).
 2. **`PdfGeneratorService.java`**:
    - Generates OpenPDF payslips itemizing earnings and deductions line items into balanced table rows.
+   - Embeds `NotoSansBengali-Regular.ttf` for full Bengali Unicode font rendering (`বাংলা হরফ`).
+   - Renders bilingual (English + Bengali) headers, employee info, earnings/deductions labels, and totals.
 3. **`ZipService.java` & Batch Export**:
    - Packages all or selected generated employee PDF payslips into a single downloadable `.zip` archive (`Payslips_JULY_2026.zip`).
    - Supports full batch zip downloads and subset zip downloads for specific selected employee UANs.
