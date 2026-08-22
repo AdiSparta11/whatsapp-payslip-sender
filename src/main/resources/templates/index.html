@@ -15,30 +15,17 @@
             <span class="dot"></span> M/S. FRIENDS ENTERPRISE
         </div>
         <h1 class="app-title">WhatsApp Payslip Dispatcher</h1>
-        <p class="app-subtitle">Upload monthly wage sheet & contact master to generate and deliver PDF payslips</p>
+        <p class="app-subtitle">Generate local PDF payslips & dispatch via WhatsApp click-to-chat links</p>
     </header>
-
-    <!-- Meta API Config Banner -->
-    <div class="config-banner">
-        <div class="config-status">
-            <div class="status-indicator" th:classappend="${apiConfigured} ? 'online' : 'offline'"></div>
-            <div class="config-info">
-                <h4 th:text="${apiConfigured} ? 'Meta WhatsApp Cloud API Connected' : 'Meta API Credentials Not Configured'">Meta API Status</h4>
-                <p th:text="${apiConfigured} ? 'Phone Number ID: ' + ${phoneNumberId} : 'App will run in Test / Dry-Run Mode. Update application.properties with your Meta API Token for live sending.'">Status details</p>
-            </div>
-        </div>
-        <span class="badge" th:classappend="${apiConfigured} ? 'status-sent' : 'status-skipped'"
-              th:text="${apiConfigured} ? 'LIVE MODE' : 'DRY-RUN / TEST'">MODE</span>
-    </div>
 
     <!-- Error Alert -->
     <div th:if="${errorMessage}" class="alert-error">
         ⚠️ <strong>Error:</strong> <span th:text="${errorMessage}">Error details</span>
     </div>
 
-    <!-- Upload Card Form -->
+    <!-- Step 1: Upload Card Form -->
     <div class="card">
-        <h2 class="card-title">📤 Step 1: Upload Files & Dispatch</h2>
+        <h2 class="card-title">📤 Step 1: Upload Excel Registers & Configure Message</h2>
         
         <form th:action="@{/dispatch}" method="post" enctype="multipart/form-data" id="dispatchForm" onsubmit="showLoading()">
             <div class="upload-grid">
@@ -62,23 +49,28 @@
             </div>
 
             <div class="options-row">
-                <label class="checkbox-group">
-                    <input type="checkbox" name="dryRun" value="true" th:checked="${!apiConfigured}">
-                    <span>Dry-Run Mode (Test matching & PDF generation without sending WhatsApp messages)</span>
-                </label>
-
                 <div class="caption-group">
-                    <input type="text" name="customCaption" class="caption-input" placeholder="Optional message caption (e.g. Payslip for July 2026)">
+                    <label style="display:block; font-size:0.85rem; font-weight:600; margin-bottom:0.4rem; color:var(--text-secondary);">
+                        💬 Custom WhatsApp Message Caption (supports <code>{name}</code>, <code>{month}</code>, <code>{year}</code>):
+                    </label>
+                    <input type="text" name="customCaption" class="caption-input"
+                           th:value="${customCaption != null ? customCaption : 'Hello {name}, please find your payslip for {month} {year} attached.'}"
+                           placeholder="Hello {name}, please find your payslip for {month} {year} attached.">
                 </div>
             </div>
 
             <button type="submit" class="btn-submit">
-                <span>🚀 Generate PDFs & Dispatch via WhatsApp</span>
+                <span>🚀 Generate PDFs & Prepare WhatsApp Dispatch</span>
             </button>
         </form>
     </div>
 
-    <!-- Results Section -->
+    <!-- Hidden Form for Subset ZIP Download -->
+    <form id="zipForm" th:action="@{/download-zip}" method="post" style="display: none;">
+        <div id="zipUanInputs"></div>
+    </form>
+
+    <!-- Step 2: Results Section -->
     <div th:if="${dispatchCompleted}">
         <!-- Summary Stat Cards -->
         <div class="summary-grid">
@@ -87,26 +79,27 @@
                 <div class="stat-label">Total Employees</div>
             </div>
             <div class="stat-card">
-                <div class="stat-number stat-sent" th:text="${sentCount}">0</div>
-                <div class="stat-label">Sent Successfully</div>
+                <div class="stat-number stat-sent" th:text="${matchedCount}">0</div>
+                <div class="stat-label">Matched & Ready</div>
             </div>
             <div class="stat-card">
-                <div class="stat-number stat-skipped" th:text="${skippedNoContactCount + skippedNoPhoneCount}">0</div>
-                <div class="stat-label">Skipped (No Contact)</div>
+                <div class="stat-number stat-skipped" th:text="${unmatchedCount}">0</div>
+                <div class="stat-label">Unmatched / Skipped</div>
             </div>
             <div class="stat-card">
-                <div class="stat-number stat-failed" th:text="${failedCount}">0</div>
-                <div class="stat-label">Failed / Errors</div>
+                <div class="stat-number stat-sent" id="summarySentCount">0</div>
+                <div class="stat-label">Dispatched (Sent)</div>
             </div>
         </div>
 
-        <!-- Detailed Results Table -->
-        <div class="card">
-            <h2 class="card-title">
-                📋 Dispatch Summary Report
-                <span th:if="${isDryRun}" class="badge status-skipped" style="margin-left: 0.5rem;">SIMULATED / DRY RUN</span>
-            </h2>
-
+        <!-- Section A: Unmatched / Skipped Employees Alert Table -->
+        <div th:if="${unmatchedCount > 0}" class="card" style="border-color: rgba(245, 158, 11, 0.4);">
+            <h3 class="card-title" style="color: var(--accent-amber);">
+                ⚠️ Unmatched / Skipped Employees (<span th:text="${unmatchedCount}">0</span>)
+            </h3>
+            <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">
+                The following employees could not be matched with a valid WhatsApp phone number in the Contact Master file.
+            </p>
             <div class="results-table-wrapper">
                 <table class="results-table">
                     <thead>
@@ -114,22 +107,95 @@
                         <th>#</th>
                         <th>Employee Name</th>
                         <th>UAN Number</th>
-                        <th>WhatsApp Phone</th>
-                        <th>Dispatch Status</th>
-                        <th>Details</th>
+                        <th>Skipped Reason</th>
                     </tr>
                     </thead>
                     <tbody>
-                    <tr th:each="r : ${results}">
+                    <tr th:each="r : ${unmatchedResults}">
                         <td th:text="${r.index}">1</td>
-                        <td style="font-weight: 600;" th:text="${r.employeeName}">RAJU DAS</td>
+                        <td style="font-weight: 600;" th:text="${r.employeeName}">WORKMAN NAME</td>
                         <td th:text="${r.uan}">100123456789</td>
-                        <td th:text="${r.phone != null ? r.phone : '-'}">+918768136662</td>
                         <td>
-                            <span class="badge" th:classappend="${r.statusCssClass}" th:text="${r.statusLabel}">✅ Sent</span>
+                            <span class="badge status-skipped" th:text="${r.errorMessage}">No contact entry</span>
                         </td>
-                        <td style="color: var(--text-secondary); font-size: 0.85rem;"
-                            th:text="${r.errorMessage != null ? r.errorMessage : (r.pdfGenerated ? 'PDF generated & delivered via Meta Cloud API' : '-')}">Details</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Section B: Matched Employees Interactive Dispatch Table -->
+        <div class="card" id="matchedCard">
+            <h2 class="card-title">
+                📋 Matched Employees Dispatch Dashboard
+            </h2>
+
+            <!-- Interactive Toolbar Row -->
+            <div class="toolbar-row">
+                <div class="toolbar-left">
+                    <span class="progress-badge" id="progressPill">0 of <span th:text="${matchedCount}">0</span> Sent</span>
+                    <div class="tab-group">
+                        <button type="button" class="tab-btn active" id="tabAll" onclick="filterRows('all')">All (<span th:text="${matchedCount}">0</span>)</button>
+                        <button type="button" class="tab-btn" id="tabPending" onclick="filterRows('pending')">Pending Only</button>
+                        <button type="button" class="tab-btn" id="tabSent" onclick="filterRows('sent')">Sent Only</button>
+                    </div>
+                </div>
+                <div class="toolbar-right">
+                    <button type="button" class="btn-secondary" onclick="toggleSelectAll(true)">Select All</button>
+                    <button type="button" class="btn-secondary" onclick="toggleSelectAll(false)">Deselect All</button>
+                    <button type="button" class="btn-secondary" onclick="selectPending()">Select All Pending</button>
+                    <button type="button" class="btn-zip" onclick="downloadSelectedZip()">📦 Download Selected PDFs (ZIP)</button>
+                </div>
+            </div>
+
+            <!-- Table -->
+            <div class="results-table-wrapper">
+                <table class="results-table" id="dispatchTable">
+                    <thead>
+                    <tr>
+                        <th style="width: 40px; text-align: center;">
+                            <input type="checkbox" id="masterSelect" onchange="toggleSelectAll(this.checked)" style="accent-color: var(--primary-blue); cursor: pointer;">
+                        </th>
+                        <th>#</th>
+                        <th>Employee Name</th>
+                        <th>UAN Number</th>
+                        <th>WhatsApp Phone</th>
+                        <th>PDF Filename</th>
+                        <th>Actions</th>
+                        <th style="text-align: center;">Sent?</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="r : ${matchedResults}"
+                        th:id="'row-' + ${r.uan}"
+                        th:data-uan="${r.uan}"
+                        th:data-month="${r.month}"
+                        th:data-year="${r.year}"
+                        class="employee-row">
+
+                        <td style="text-align: center;">
+                            <input type="checkbox" class="row-select" th:data-uan="${r.uan}" style="accent-color: var(--primary-blue); cursor: pointer;">
+                        </td>
+                        <td th:text="${r.index}">1</td>
+                        <td class="col-name" style="font-weight: 600;" th:text="${r.employeeName}">RAJU DAS</td>
+                        <td th:text="${r.uan}">100123456789</td>
+                        <td th:text="${r.phone}">+918768136662</td>
+                        <td>
+                            <code class="filename-code" th:text="${r.pdfFilename}">Payslip_RAJU_DAS_JULY_2026.pdf</code>
+                        </td>
+                        <td>
+                            <div class="action-group">
+                                <a th:href="${r.waLink}" target="_blank" class="btn-wa" title="Open pre-filled WhatsApp Web chat">
+                                    📲 Open Chat
+                                </a>
+                                <a th:href="@{/download-pdf/{uan}(uan=${r.uan})}" target="_blank" class="btn-pdf" title="Download individual PDF">
+                                    📥 PDF
+                                </a>
+                            </div>
+                        </td>
+                        <td style="text-align: center;">
+                            <input type="checkbox" class="sent-toggle" th:data-uan="${r.uan}" onchange="toggleSentState(this)" style="width: 20px; height: 20px; accent-color: var(--accent-emerald); cursor: pointer;">
+                        </td>
                     </tr>
                     </tbody>
                 </table>
@@ -138,14 +204,16 @@
     </div>
 </div>
 
-<!-- Loading Spinner Overlay -->
+<!-- Loading Overlay -->
 <div class="loading-overlay" id="loadingOverlay">
     <div class="spinner"></div>
-    <div class="loading-text">Processing Dispatch Loop...</div>
-    <div class="loading-subtext">Generating PDFs, uploading to Meta API, and delivering WhatsApp messages. Please wait.</div>
+    <div class="loading-text">Parsing Excel Registers & Generating PDFs...</div>
+    <div class="loading-subtext">Building formatted PDF payslips for all employees. Please wait.</div>
 </div>
 
 <script>
+    let currentFilter = 'all';
+
     function updateFileName(input, targetId) {
         const display = document.getElementById(targetId);
         if (input.files && input.files[0]) {
@@ -157,6 +225,135 @@
 
     function showLoading() {
         document.getElementById('loadingOverlay').style.display = 'flex';
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        restoreSentStates();
+    });
+
+    function getStorageKey(uan, row) {
+        const month = row.getAttribute('data-month') || 'JULY';
+        const year = row.getAttribute('data-year') || '2026';
+        return `payslip_sent_${month}_${year}_${uan}`;
+    }
+
+    function restoreSentStates() {
+        const rows = document.querySelectorAll('.employee-row');
+        let sentCount = 0;
+
+        rows.forEach(row => {
+            const uan = row.getAttribute('data-uan');
+            const toggle = row.querySelector('.sent-toggle');
+            const key = getStorageKey(uan, row);
+
+            if (localStorage.getItem(key) === 'true') {
+                toggle.checked = true;
+                row.classList.add('row-done');
+                sentCount++;
+            } else {
+                toggle.checked = false;
+                row.classList.remove('row-done');
+            }
+        });
+
+        updateProgress(sentCount, rows.length);
+    }
+
+    function toggleSentState(checkbox) {
+        const uan = checkbox.getAttribute('data-uan');
+        const row = document.getElementById('row-' + uan);
+        const key = getStorageKey(uan, row);
+
+        if (checkbox.checked) {
+            localStorage.setItem(key, 'true');
+            row.classList.add('row-done');
+        } else {
+            localStorage.removeItem(key);
+            row.classList.remove('row-done');
+        }
+
+        const rows = document.querySelectorAll('.employee-row');
+        const sentCount = document.querySelectorAll('.sent-toggle:checked').length;
+        updateProgress(sentCount, rows.length);
+
+        if (currentFilter !== 'all') {
+            filterRows(currentFilter);
+        }
+    }
+
+    function updateProgress(sent, total) {
+        const pill = document.getElementById('progressPill');
+        if (pill) {
+            pill.textContent = `${sent} of ${total} Sent`;
+        }
+
+        const summaryStat = document.getElementById('summarySentCount');
+        if (summaryStat) {
+            summaryStat.textContent = sent;
+        }
+    }
+
+    function filterRows(type) {
+        currentFilter = type;
+
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        if (type === 'all') document.getElementById('tabAll').classList.add('active');
+        if (type === 'pending') document.getElementById('tabPending').classList.add('active');
+        if (type === 'sent') document.getElementById('tabSent').classList.add('active');
+
+        const rows = document.querySelectorAll('.employee-row');
+        rows.forEach(row => {
+            const isDone = row.classList.contains('row-done');
+            if (type === 'all') {
+                row.style.display = '';
+            } else if (type === 'pending') {
+                row.style.display = isDone ? 'none' : '';
+            } else if (type === 'sent') {
+                row.style.display = isDone ? '' : 'none';
+            }
+        });
+    }
+
+    function toggleSelectAll(checked) {
+        document.querySelectorAll('.row-select').forEach(cb => {
+            const row = cb.closest('tr');
+            if (row && row.style.display !== 'none') {
+                cb.checked = checked;
+            }
+        });
+    }
+
+    function selectPending() {
+        document.querySelectorAll('.employee-row').forEach(row => {
+            const isDone = row.classList.contains('row-done');
+            const cb = row.querySelector('.row-select');
+            if (cb) {
+                cb.checked = !isDone;
+            }
+        });
+    }
+
+    function downloadSelectedZip() {
+        const selectedUans = [];
+        document.querySelectorAll('.row-select:checked').forEach(cb => {
+            selectedUans.push(cb.getAttribute('data-uan'));
+        });
+
+        const zipForm = document.getElementById('zipForm');
+        const container = document.getElementById('zipUanInputs');
+        container.innerHTML = '';
+
+        if (selectedUans.length > 0) {
+            selectedUans.forEach(uan => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'uans';
+                input.value = uan;
+                container.appendChild(input);
+            });
+        }
+
+        zipForm.submit();
     }
 </script>
 

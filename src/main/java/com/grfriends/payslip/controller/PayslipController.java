@@ -1,23 +1,24 @@
 package com.grfriends.payslip.controller;
 
-import com.grfriends.payslip.config.WhatsAppConfig;
 import com.grfriends.payslip.model.DispatchResult;
 import com.grfriends.payslip.model.Employee;
 import com.grfriends.payslip.service.ExcelParserService;
 import com.grfriends.payslip.service.PdfGeneratorService;
-import com.grfriends.payslip.service.WhatsAppService;
+import com.grfriends.payslip.service.ZipService;
+import jakarta.servlet.http.HttpSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
 
 @Controller
 public class PayslipController {
@@ -26,43 +27,32 @@ public class PayslipController {
 
     private final ExcelParserService excelParserService;
     private final PdfGeneratorService pdfGeneratorService;
-    private final WhatsAppService whatsAppService;
-    private final WhatsAppConfig whatsAppConfig;
+    private final ZipService zipService;
 
     public PayslipController(ExcelParserService excelParserService,
                              PdfGeneratorService pdfGeneratorService,
-                             WhatsAppService whatsAppService,
-                             WhatsAppConfig whatsAppConfig) {
+                             ZipService zipService) {
         this.excelParserService = excelParserService;
         this.pdfGeneratorService = pdfGeneratorService;
-        this.whatsAppService = whatsAppService;
-        this.whatsAppConfig = whatsAppConfig;
+        this.zipService = zipService;
     }
 
     @GetMapping("/")
     public String index(Model model) {
-        boolean configured = whatsAppConfig.getAccessToken() != null &&
-                !whatsAppConfig.getAccessToken().startsWith("REPLACE_") &&
-                whatsAppConfig.getPhoneNumberId() != null &&
-                !whatsAppConfig.getPhoneNumberId().startsWith("REPLACE_");
-
-        model.addAttribute("apiConfigured", configured);
-        model.addAttribute("phoneNumberId", whatsAppConfig.getPhoneNumberId());
         return "index";
     }
 
     @PostMapping("/dispatch")
     public String dispatch(@RequestParam("wageSheet") MultipartFile wageSheetFile,
                            @RequestParam("contactMaster") MultipartFile contactMasterFile,
-                           @RequestParam(value = "dryRun", defaultValue = "false") boolean dryRun,
                            @RequestParam(value = "customCaption", required = false) String customCaption,
+                           HttpSession session,
                            Model model) {
 
-        List<DispatchResult> results = new ArrayList<>();
-        int sentCount = 0;
-        int skippedNoContactCount = 0;
-        int skippedNoPhoneCount = 0;
-        int failedCount = 0;
+        List<DispatchResult> matchedResults = new ArrayList<>();
+        List<DispatchResult> unmatchedResults = new ArrayList<>();
+        Map<String, byte[]> pdfMap = new LinkedHashMap<>();
+        Map<String, String> filenameMap = new LinkedHashMap<>();
 
         try {
             if (wageSheetFile.isEmpty() || contactMasterFile.isEmpty()) {
@@ -70,8 +60,8 @@ public class PayslipController {
                 return "index";
             }
 
-            log.info("Starting dispatch. Wage file: {}, Contact file: {}, dryRun: {}",
-                    wageSheetFile.getOriginalFilename(), contactMasterFile.getOriginalFilename(), dryRun);
+            log.info("Starting processing. Wage file: {}, Contact file: {}",
+                    wageSheetFile.getOriginalFilename(), contactMasterFile.getOriginalFilename());
 
             // Step 1: Parse Wage Sheet
             List<Employee> employees = excelParserService.parseWageSheet(wageSheetFile.getInputStream());
@@ -84,21 +74,26 @@ public class PayslipController {
             // Step 3: Match Employees to Contacts
             excelParserService.matchEmployeesToContacts(employees, contacts);
 
-            boolean isMetaConfigured = whatsAppConfig.getAccessToken() != null &&
-                    !whatsAppConfig.getAccessToken().startsWith("REPLACE_");
+            String templateMsg = (customCaption != null && !customCaption.isBlank())
+                    ? customCaption
+                    : "Hello {name}, please find your payslip for {month} {year} attached.";
 
-            // Step 4: Process Each Employee
+            String detectedMonth = "JULY";
+            String detectedYear = "2026";
+
+            // Step 4: Generate Local PDFs and Build Dispatch Table Rows
             for (int i = 0; i < employees.size(); i++) {
                 Employee emp = employees.get(i);
                 int idx = i + 1;
 
+                if (emp.getMonth() != null) detectedMonth = emp.getMonth();
+                if (emp.getYear() != null) detectedYear = emp.getYear();
+
                 if (!emp.hasPhone()) {
                     if (contacts.containsKey(emp.getUan())) {
-                        results.add(DispatchResult.skippedNoPhone(idx, emp.getName(), emp.getUan()));
-                        skippedNoPhoneCount++;
+                        unmatchedResults.add(DispatchResult.skippedNoPhone(idx, emp.getName(), emp.getUan()));
                     } else {
-                        results.add(DispatchResult.skippedNoContact(idx, emp.getName(), emp.getUan()));
-                        skippedNoContactCount++;
+                        unmatchedResults.add(DispatchResult.skippedNoContact(idx, emp.getName(), emp.getUan()));
                     }
                     continue;
                 }
@@ -109,57 +104,129 @@ public class PayslipController {
                     pdfBytes = pdfGeneratorService.generatePayslipPdf(emp);
                 } catch (Exception e) {
                     log.error("Failed to generate PDF for employee UAN {}: {}", emp.getUan(), e.getMessage());
-                    results.add(DispatchResult.failed(idx, emp.getName(), emp.getUan(), emp.getPhoneNumber(),
+                    unmatchedResults.add(DispatchResult.failed(idx, emp.getName(), emp.getUan(), emp.getPhoneNumber(),
                             "PDF Generation Error: " + e.getMessage()));
-                    failedCount++;
                     continue;
                 }
 
+                String sanitizedName = emp.getName().replaceAll("[^a-zA-Z0-9]", "_").replaceAll("_+", "_");
                 String filename = String.format("Payslip_%s_%s_%s.pdf",
-                        emp.getName().replaceAll("[^a-zA-Z0-9]", "_"),
-                        emp.getMonth(), emp.getYear());
+                        sanitizedName, emp.getMonth(), emp.getYear());
 
-                String caption = (customCaption != null && !customCaption.isBlank())
-                        ? customCaption
-                        : String.format("Payslip for %s %s - M/S. FRIENDS ENTERPRISE", emp.getMonth(), emp.getYear());
+                String cleanPhone = emp.getPhoneNumber().replaceAll("\\D", "");
 
-                // If dry run or Meta credentials not set, simulate send
-                if (dryRun || !isMetaConfigured) {
-                    String statusMsg = dryRun ? "Dry Run (Simulated Success)" : "Meta API Credentials not configured (Simulated Success)";
-                    results.add(new DispatchResult(idx, emp.getName(), emp.getUan(), emp.getPhoneNumber(),
-                            DispatchResult.Status.SENT, statusMsg, true));
-                    sentCount++;
-                } else {
-                    // Real WhatsApp Dispatch via Meta Cloud API using approved Template Message
-                    try {
-                        String mediaId = whatsAppService.uploadPdfMedia(pdfBytes, filename);
-                        whatsAppService.sendPayslipTemplate(emp.getPhoneNumber(), mediaId, filename, emp.getName(), emp.getMonth(), emp.getYear(), null);
+                // Substitute caption variables
+                String messageText = templateMsg
+                        .replace("{name}", emp.getName())
+                        .replace("{month}", emp.getMonth())
+                        .replace("{year}", emp.getYear());
 
-                        results.add(DispatchResult.sent(idx, emp.getName(), emp.getUan(), emp.getPhoneNumber()));
-                        sentCount++;
-                    } catch (Exception e) {
-                        log.error("Failed WhatsApp dispatch for employee {}: {}", emp.getUan(), e.getMessage());
-                        results.add(DispatchResult.failed(idx, emp.getName(), emp.getUan(), emp.getPhoneNumber(),
-                                "WhatsApp Dispatch Error: " + e.getMessage()));
-                        failedCount++;
-                    }
-                }
+                String encodedMsg = URLEncoder.encode(messageText, StandardCharsets.UTF_8);
+                String waLink = "https://wa.me/" + cleanPhone + "?text=" + encodedMsg;
+
+                DispatchResult res = DispatchResult.matched(idx, emp.getName(), emp.getUan(),
+                        emp.getPhoneNumber(), cleanPhone, filename, waLink, emp.getMonth(), emp.getYear());
+
+                matchedResults.add(res);
+                pdfMap.put(emp.getUan(), pdfBytes);
+                filenameMap.put(emp.getUan(), filename);
             }
 
-            model.addAttribute("results", results);
+            // Save batch to session for ZIP & single PDF downloads
+            session.setAttribute("pdfMap", pdfMap);
+            session.setAttribute("filenameMap", filenameMap);
+            session.setAttribute("batchPeriod", detectedMonth + "_" + detectedYear);
+
+            model.addAttribute("matchedResults", matchedResults);
+            model.addAttribute("unmatchedResults", unmatchedResults);
             model.addAttribute("totalEmployees", employees.size());
-            model.addAttribute("sentCount", sentCount);
-            model.addAttribute("skippedNoContactCount", skippedNoContactCount);
-            model.addAttribute("skippedNoPhoneCount", skippedNoPhoneCount);
-            model.addAttribute("failedCount", failedCount);
-            model.addAttribute("isDryRun", dryRun || !isMetaConfigured);
+            model.addAttribute("matchedCount", matchedResults.size());
+            model.addAttribute("unmatchedCount", unmatchedResults.size());
+            model.addAttribute("batchMonth", detectedMonth);
+            model.addAttribute("batchYear", detectedYear);
+            model.addAttribute("customCaption", templateMsg);
             model.addAttribute("dispatchCompleted", true);
 
         } catch (Exception e) {
-            log.error("Error processing dispatch: ", e);
+            log.error("Error processing files: ", e);
             model.addAttribute("errorMessage", "Error processing files: " + e.getMessage());
         }
 
         return "index";
     }
+
+    /**
+     * Download all or selected matched employees' PDFs packaged into a ZIP archive.
+     */
+    @RequestMapping(value = "/download-zip", method = {RequestMethod.GET, RequestMethod.POST})
+    public ResponseEntity<byte[]> downloadZip(@RequestParam(value = "uans", required = false) List<String> uans,
+                                             HttpSession session) {
+
+        @SuppressWarnings("unchecked")
+        Map<String, byte[]> pdfMap = (Map<String, byte[]>) session.getAttribute("pdfMap");
+
+        @SuppressWarnings("unchecked")
+        Map<String, String> filenameMap = (Map<String, String>) session.getAttribute("filenameMap");
+
+        String batchPeriod = (String) session.getAttribute("batchPeriod");
+        if (batchPeriod == null) batchPeriod = "MONTHLY";
+
+        if (pdfMap == null || pdfMap.isEmpty()) {
+            return ResponseEntity.badRequest().body("No generated payslips found in session. Please process files first.".getBytes());
+        }
+
+        Map<String, byte[]> targetFiles = new LinkedHashMap<>();
+
+        if (uans != null && !uans.isEmpty()) {
+            for (String uan : uans) {
+                if (pdfMap.containsKey(uan)) {
+                    String fn = filenameMap.getOrDefault(uan, "Payslip_" + uan + ".pdf");
+                    targetFiles.put(fn, pdfMap.get(uan));
+                }
+            }
+        } else {
+            for (Map.Entry<String, byte[]> entry : pdfMap.entrySet()) {
+                String fn = filenameMap.getOrDefault(entry.getKey(), "Payslip_" + entry.getKey() + ".pdf");
+                targetFiles.put(fn, entry.getValue());
+            }
+        }
+
+        try {
+            byte[] zipBytes = zipService.createZipArchive(targetFiles);
+            String zipFilename = "Payslips_" + batchPeriod + ".zip";
+
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + zipFilename + "\"")
+                    .contentType(MediaType.parseMediaType("application/zip"))
+                    .body(zipBytes);
+        } catch (Exception e) {
+            log.error("Failed to generate ZIP archive: ", e);
+            return ResponseEntity.internalServerError().body(("ZIP creation error: " + e.getMessage()).getBytes());
+        }
+    }
+
+    /**
+     * Download a single employee's generated PDF by UAN.
+     */
+    @GetMapping("/download-pdf/{uan}")
+    public ResponseEntity<byte[]> downloadPdf(@PathVariable("uan") String uan, HttpSession session) {
+        @SuppressWarnings("unchecked")
+        Map<String, byte[]> pdfMap = (Map<String, byte[]>) session.getAttribute("pdfMap");
+
+        @SuppressWarnings("unchecked")
+        Map<String, String> filenameMap = (Map<String, String>) session.getAttribute("filenameMap");
+
+        if (pdfMap == null || !pdfMap.containsKey(uan)) {
+            return ResponseEntity.notFound().build();
+        }
+
+        byte[] pdfBytes = pdfMap.get(uan);
+        String filename = filenameMap.getOrDefault(uan, "Payslip_" + uan + ".pdf");
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(pdfBytes);
+    }
 }
+
