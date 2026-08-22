@@ -134,6 +134,7 @@
             <div class="toolbar-row">
                 <div class="toolbar-left">
                     <span class="progress-badge" id="progressPill">0 of <span th:text="${matchedCount}">0</span> Sent</span>
+                    <button type="button" class="btn-secondary" onclick="resetBatchProgress()" style="font-size:0.75rem; padding:0.25rem 0.6rem;" title="Reset sent tracking for all employees">🔄 Reset Progress</button>
                     <div class="tab-group">
                         <button type="button" class="tab-btn active" id="tabAll" onclick="filterRows('all')">All (<span th:text="${matchedCount}">0</span>)</button>
                         <button type="button" class="tab-btn" id="tabPending" onclick="filterRows('pending')">Pending Only</button>
@@ -257,6 +258,22 @@
         });
 
         updateProgress(sentCount, rows.length);
+    }
+
+    function resetBatchProgress() {
+        if (confirm("Reset sent progress for all employees in this batch?")) {
+            const rows = document.querySelectorAll('.employee-row');
+            rows.forEach(row => {
+                const uan = row.getAttribute('data-uan');
+                const key = getStorageKey(uan, row);
+                localStorage.removeItem(key);
+                const toggle = row.querySelector('.sent-toggle');
+                if (toggle) toggle.checked = false;
+                row.classList.remove('row-done');
+            });
+            updateProgress(0, rows.length);
+            filterRows(currentFilter);
+        }
     }
 
     function toggleSentState(checkbox) {
