@@ -32,6 +32,36 @@ public class ExcelParserService {
             "designation", "basic wages", "net payable", "days worked", "basic rate"
     );
 
+    // Fixed POI 0-indexed column locations for Form XVII statutory wage sheet layout
+    private static final int COL_SL_NO = 0;               // A
+    private static final int COL_NAME = 1;                // B
+    private static final int COL_UAN = 2;                 // C
+    private static final int COL_ESI = 3;                 // D
+    private static final int COL_DESIGNATION = 4;         // E
+    private static final int COL_DAYS_WORKED = 5;         // F
+    private static final int COL_TOTAL_DAYS = 9;          // J
+    private static final int COL_DAILY_RATE = 10;         // K
+    private static final int COL_BASIC = 11;              // L
+    private static final int COL_DA = 12;                 // M
+    private static final int COL_WASHING = 13;            // N
+    private static final int COL_FUEL = 14;               // O
+    private static final int COL_ATTENDANCE = 15;         // P
+    private static final int COL_FOOD = 16;               // Q
+    private static final int COL_GRATUITY = 17;           // R
+    private static final int COL_HRA = 18;                // S
+    private static final int COL_OT_DAYS = 19;            // T
+    private static final int COL_OT_AMOUNT = 20;          // U
+    private static final int COL_EXTRA_PRODUCTION = 21;   // V
+    private static final int COL_PERFORMANCE_INCENTIVE = 22; // W
+    private static final int COL_GROSS_TOTAL = 23;        // X
+    private static final int COL_ESIC_SALARY = 24;        // Y
+    private static final int COL_EPFO_SALARY = 25;        // Z
+    private static final int COL_PF_DEDUCTION = 26;       // AA
+    private static final int COL_ESI_EMPLOYEE_SHARE = 27; // AB
+    private static final int COL_ADVANCE_DEDUCTION = 28;  // AC
+    private static final int COL_TOTAL_DEDUCTION = 29;    // AD
+    private static final int COL_NET_PAID = 30;           // AE
+
     // Month names for extraction from sheet title/header
     private static final List<String> MONTHS = List.of(
             "JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE",
@@ -75,8 +105,11 @@ public class ExcelParserService {
             Row row = wageSheet.getRow(r);
             if (row == null) continue;
 
-            // Get the UAN — this is the primary key
+            // Get the UAN — try fuzzy header lookup first, fallback to fixed index COL_UAN (col 2)
             String uan = getCellString(row, columnMap, "uan no", "uan");
+            if (uan == null) {
+                uan = getCellByIndex(row, COL_UAN);
+            }
             uan = normalizeUan(uan);
 
             // Skip rows without a valid UAN (totals, empty rows, sub-headers)
@@ -84,6 +117,9 @@ public class ExcelParserService {
 
             // Also skip if it looks like a header or total row
             String nameVal = getCellString(row, columnMap, "name of workman", "workman", "name");
+            if (nameVal == null) {
+                nameVal = getCellByIndex(row, COL_NAME);
+            }
             if (nameVal != null && (nameVal.equalsIgnoreCase("TOTAL") || nameVal.equalsIgnoreCase("GRAND TOTAL"))) {
                 continue;
             }
@@ -93,21 +129,51 @@ public class ExcelParserService {
             emp.setSlNo(slNo);
             emp.setUan(uan);
             emp.setName(nameVal != null ? nameVal.trim() : "Unknown");
-            emp.setEsiNo(getCellString(row, columnMap, "e.s.i no", "esi no", "esic no", "esi"));
-            emp.setDesignation(getCellString(row, columnMap, "designation"));
-            emp.setDaysWorked(getCellString(row, columnMap, "no. of days worked", "days worked", "days"));
-            emp.setBasicRate(getCellString(row, columnMap, "basic rate of wages", "basic rate", "rate"));
-            emp.setBasicAmount(getCellString(row, columnMap, "basic wages earned", "basic wages", "basic amt", "basic"));
-            emp.setHra(getCellString(row, columnMap, "h.r.a.", "hra", "house rent", "h.r.a"));
-            emp.setOtherAllowances(getCellString(row, columnMap, "other allowance", "allowance", "ot", "overtime"));
-            emp.setGrossEarnings(getCellString(row, columnMap, "gross wages", "gross earning", "gross"));
-            emp.setEpfDeduction(getCellString(row, columnMap, "e.p.f. contribution", "epf", "p.f.", "pf"));
-            emp.setEsiDeduction(getCellString(row, columnMap, "e.s.i.c. contribution", "esic contribution", "esic"));
-            emp.setOtherDeductions(getCellString(row, columnMap, "other deduction", "other ded"));
-            emp.setTotalDeductions(getCellString(row, columnMap, "total deduction", "total ded"));
-            emp.setNetPayable(getCellString(row, columnMap, "net payable", "net paid", "net wages", "net pay"));
+
+            // Identity columns (row 9 fuzzy lookup, with fixed column fallback)
+            String esiVal = getCellString(row, columnMap, "e.s.i no", "esi no", "esic no", "esi");
+            if (esiVal == null) esiVal = getCellByIndex(row, COL_ESI);
+            emp.setEsiNo(esiVal);
+
+            String desigVal = getCellString(row, columnMap, "designation");
+            if (desigVal == null) desigVal = getCellByIndex(row, COL_DESIGNATION);
+            emp.setDesignation(desigVal);
+
+            String daysVal = getCellString(row, columnMap, "no. of days worked", "days worked", "days");
+            if (daysVal == null) daysVal = getCellByIndex(row, COL_DAYS_WORKED);
+            emp.setDaysWorked(daysVal);
+
+            // Wage and deduction amount columns (fixed POI indices for Form XVII)
+            emp.setBasicRate(getCellByIndex(row, COL_DAILY_RATE));
+            emp.setBasicAmount(getCellByIndex(row, COL_BASIC));
+            emp.setDa(getCellByIndex(row, COL_DA));
+            emp.setWashingAllowance(getCellByIndex(row, COL_WASHING));
+            emp.setFuelAllowance(getCellByIndex(row, COL_FUEL));
+            emp.setAttendanceAllowance(getCellByIndex(row, COL_ATTENDANCE));
+            emp.setFoodAllowance(getCellByIndex(row, COL_FOOD));
+            emp.setGratuity(getCellByIndex(row, COL_GRATUITY));
+            emp.setHra(getCellByIndex(row, COL_HRA));
+            emp.setOvertimeDays(getCellByIndex(row, COL_OT_DAYS));
+            emp.setOvertimeAmount(getCellByIndex(row, COL_OT_AMOUNT));
+            emp.setExtraProduction(getCellByIndex(row, COL_EXTRA_PRODUCTION));
+            emp.setPerformanceIncentive(getCellByIndex(row, COL_PERFORMANCE_INCENTIVE));
+            emp.setGrossEarnings(getCellByIndex(row, COL_GROSS_TOTAL));
+            emp.setEsicSalary(getCellByIndex(row, COL_ESIC_SALARY));
+            emp.setEpfoSalary(getCellByIndex(row, COL_EPFO_SALARY));
+            emp.setEpfDeduction(getCellByIndex(row, COL_PF_DEDUCTION));
+            emp.setEsiDeduction(getCellByIndex(row, COL_ESI_EMPLOYEE_SHARE));
+            emp.setAdvanceDeduction(getCellByIndex(row, COL_ADVANCE_DEDUCTION));
+            emp.setTotalDeductions(getCellByIndex(row, COL_TOTAL_DEDUCTION));
+            emp.setNetPayable(getCellByIndex(row, COL_NET_PAID));
+
+            // Summary of extra allowances
+            emp.setOtherAllowances(computeOtherAllowancesSummary(emp));
+
             emp.setMonth(month);
             emp.setYear(year);
+
+            // Runtime sanity check: Gross - Total Deductions = Net Payable
+            verifySalaryMathSanity(emp);
 
             employees.add(emp);
         }
@@ -262,6 +328,53 @@ public class ExcelParserService {
             }
         }
         return map;
+    }
+
+    /**
+     * Get a cell value by fixed column index.
+     */
+    private String getCellByIndex(Row row, int colIdx) {
+        if (row == null) return null;
+        Cell cell = row.getCell(colIdx);
+        if (cell == null) return null;
+        String val = getCellValueAsString(cell).trim();
+        if (val.isEmpty() || val.equalsIgnoreCase("nan") || val.equalsIgnoreCase("null")) {
+            return null;
+        }
+        return val;
+    }
+
+    /**
+     * Calculate summary of extra/other allowances.
+     */
+    private String computeOtherAllowancesSummary(Employee emp) {
+        double extra = 0.0;
+        extra += parseDecimalSafe(emp.getOvertimeAmount());
+        extra += parseDecimalSafe(emp.getExtraProduction());
+        extra += parseDecimalSafe(emp.getPerformanceIncentive());
+        return extra > 0 ? String.format("%.2f", extra) : null;
+    }
+
+    /**
+     * Perform runtime sanity check on gross, deductions, and net payable.
+     */
+    private void verifySalaryMathSanity(Employee emp) {
+        double gross = parseDecimalSafe(emp.getGrossEarnings());
+        double ded = parseDecimalSafe(emp.getTotalDeductions());
+        double net = parseDecimalSafe(emp.getNetPayable());
+        if (gross > 0 && Math.abs((gross - ded) - net) > 1.0) {
+            log.warn("Pay discrepancy detected for UAN {} ({})! Gross: {}, Deductions: {}, Net Paid: {} (Expected Net: {})",
+                    emp.getUan(), emp.getName(), emp.getGrossEarnings(), emp.getTotalDeductions(), emp.getNetPayable(), String.format("%.2f", gross - ded));
+        }
+    }
+
+    private double parseDecimalSafe(String val) {
+        if (val == null || val.isBlank()) return 0.0;
+        try {
+            return Double.parseDouble(val.replaceAll("[^0-9.]", ""));
+        } catch (Exception e) {
+            return 0.0;
+        }
     }
 
     /**

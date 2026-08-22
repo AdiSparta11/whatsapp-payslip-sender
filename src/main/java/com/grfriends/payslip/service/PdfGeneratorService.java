@@ -11,6 +11,8 @@ import org.springframework.stereotype.Service;
 
 import java.awt.Color;
 import java.io.ByteArrayOutputStream;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Generates an in-memory PDF payslip for an Employee using OpenPDF.
@@ -82,15 +84,42 @@ public class PdfGeneratorService {
         addHeaderCell(payTable, "Deductions Description", whiteBoldFont);
         addHeaderCell(payTable, "Amount (Rs.)", whiteBoldFont);
 
-        // Rows
-        addPayRow(payTable, "Basic Wages", defaultVal(emp.getBasicAmount(), "0.00"),
-                "E.P.F. Contribution", defaultVal(emp.getEpfDeduction(), "0.00"), normalFont);
+        // Build itemized list of earnings
+        List<String[]> earnings = new ArrayList<>();
+        addIfPresent(earnings, "Basic Wages", emp.getBasicAmount());
+        addIfPresent(earnings, "Dearness Allowance (DA)", emp.getDa());
+        addIfPresent(earnings, "House Rent Allowance (HRA)", emp.getHra());
+        addIfPresent(earnings, "Washing Allowance", emp.getWashingAllowance());
+        addIfPresent(earnings, "Fuel Allowance", emp.getFuelAllowance());
+        addIfPresent(earnings, "Attendance Allowance", emp.getAttendanceAllowance());
+        addIfPresent(earnings, "Food Allowance", emp.getFoodAllowance());
+        addIfPresent(earnings, "Gratuity", emp.getGratuity());
+        addIfPresent(earnings, "Overtime Amount", emp.getOvertimeAmount());
+        addIfPresent(earnings, "Performance Incentive", emp.getPerformanceIncentive());
+        addIfPresent(earnings, "Other Allowances", emp.getOtherAllowances());
+        if (earnings.isEmpty()) {
+            addIfPresent(earnings, "Basic Wages", "0.00");
+        }
 
-        addPayRow(payTable, "House Rent Allowance", defaultVal(emp.getHra(), "0.00"),
-                "E.S.I.C. Contribution", defaultVal(emp.getEsiDeduction(), "0.00"), normalFont);
+        // Build itemized list of deductions
+        List<String[]> deductions = new ArrayList<>();
+        addIfPresent(deductions, "E.P.F. Contribution", emp.getEpfDeduction());
+        addIfPresent(deductions, "E.S.I.C. Contribution", emp.getEsiDeduction());
+        addIfPresent(deductions, "Advance Deduction", emp.getAdvanceDeduction());
+        addIfPresent(deductions, "Other Deductions", emp.getOtherDeductions());
+        if (deductions.isEmpty()) {
+            addIfPresent(deductions, "E.P.F. Contribution", "0.00");
+        }
 
-        addPayRow(payTable, "Overtime / Allowances", defaultVal(emp.getOtherAllowances(), "0.00"),
-                "Other Deductions", defaultVal(emp.getOtherDeductions(), "0.00"), normalFont);
+        // Render balanced rows
+        int maxRows = Math.max(earnings.size(), deductions.size());
+        for (int i = 0; i < maxRows; i++) {
+            String eDesc = i < earnings.size() ? earnings.get(i)[0] : "";
+            String eAmt = i < earnings.size() ? earnings.get(i)[1] : "";
+            String dDesc = i < deductions.size() ? deductions.get(i)[0] : "";
+            String dAmt = i < deductions.size() ? deductions.get(i)[1] : "";
+            addPayRow(payTable, eDesc, eAmt, dDesc, dAmt, normalFont);
+        }
 
         // Totals Row
         addTotalRow(payTable, "GROSS EARNINGS", defaultVal(emp.getGrossEarnings(), "0.00"),
@@ -172,6 +201,12 @@ public class PdfGeneratorService {
             c.setPadding(6);
             c.setBorderColor(new Color(203, 213, 225));
             table.addCell(c);
+        }
+    }
+
+    private void addIfPresent(List<String[]> list, String label, String val) {
+        if (val != null && !val.isBlank() && !val.equals("0.00") && !val.equals("0")) {
+            list.add(new String[]{label, val});
         }
     }
 

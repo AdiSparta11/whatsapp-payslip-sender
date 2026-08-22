@@ -25,12 +25,15 @@ class PdfGeneratorServiceTest {
         emp.setDaysWorked("26");
         emp.setBasicRate("450.00");
         emp.setBasicAmount("11700.00");
+        emp.setDa("260.00");
+        emp.setWashingAllowance("100.00");
         emp.setHra("1170.00");
-        emp.setGrossEarnings("12870.00");
+        emp.setGrossEarnings("13230.00");
         emp.setEpfDeduction("1404.00");
         emp.setEsiDeduction("96.50");
-        emp.setTotalDeductions("1500.50");
-        emp.setNetPayable("11369.50");
+        emp.setAdvanceDeduction("500.00");
+        emp.setTotalDeductions("2000.50");
+        emp.setNetPayable("11229.50");
         emp.setMonth("JULY");
         emp.setYear("2026");
 

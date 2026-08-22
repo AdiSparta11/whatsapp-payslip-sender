@@ -14,11 +14,24 @@ public class Employee {
     private String daysWorked;
     private String basicRate;
     private String basicAmount;
+    private String da;
+    private String washingAllowance;
+    private String fuelAllowance;
+    private String attendanceAllowance;
+    private String foodAllowance;
+    private String gratuity;
     private String hra;
+    private String overtimeDays;
+    private String overtimeAmount;
+    private String extraProduction;
+    private String performanceIncentive;
     private String otherAllowances;
     private String grossEarnings;
+    private String esicSalary;
+    private String epfoSalary;
     private String epfDeduction;
     private String esiDeduction;
+    private String advanceDeduction;
     private String otherDeductions;
     private String totalDeductions;
     private String netPayable;
@@ -52,8 +65,38 @@ public class Employee {
     public String getBasicAmount() { return basicAmount; }
     public void setBasicAmount(String basicAmount) { this.basicAmount = basicAmount; }
 
+    public String getDa() { return da; }
+    public void setDa(String da) { this.da = da; }
+
+    public String getWashingAllowance() { return washingAllowance; }
+    public void setWashingAllowance(String washingAllowance) { this.washingAllowance = washingAllowance; }
+
+    public String getFuelAllowance() { return fuelAllowance; }
+    public void setFuelAllowance(String fuelAllowance) { this.fuelAllowance = fuelAllowance; }
+
+    public String getAttendanceAllowance() { return attendanceAllowance; }
+    public void setAttendanceAllowance(String attendanceAllowance) { this.attendanceAllowance = attendanceAllowance; }
+
+    public String getFoodAllowance() { return foodAllowance; }
+    public void setFoodAllowance(String foodAllowance) { this.foodAllowance = foodAllowance; }
+
+    public String getGratuity() { return gratuity; }
+    public void setGratuity(String gratuity) { this.gratuity = gratuity; }
+
     public String getHra() { return hra; }
     public void setHra(String hra) { this.hra = hra; }
+
+    public String getOvertimeDays() { return overtimeDays; }
+    public void setOvertimeDays(String overtimeDays) { this.overtimeDays = overtimeDays; }
+
+    public String getOvertimeAmount() { return overtimeAmount; }
+    public void setOvertimeAmount(String overtimeAmount) { this.overtimeAmount = overtimeAmount; }
+
+    public String getExtraProduction() { return extraProduction; }
+    public void setExtraProduction(String extraProduction) { this.extraProduction = extraProduction; }
+
+    public String getPerformanceIncentive() { return performanceIncentive; }
+    public void setPerformanceIncentive(String performanceIncentive) { this.performanceIncentive = performanceIncentive; }
 
     public String getOtherAllowances() { return otherAllowances; }
     public void setOtherAllowances(String otherAllowances) { this.otherAllowances = otherAllowances; }
@@ -61,11 +104,20 @@ public class Employee {
     public String getGrossEarnings() { return grossEarnings; }
     public void setGrossEarnings(String grossEarnings) { this.grossEarnings = grossEarnings; }
 
+    public String getEsicSalary() { return esicSalary; }
+    public void setEsicSalary(String esicSalary) { this.esicSalary = esicSalary; }
+
+    public String getEpfoSalary() { return epfoSalary; }
+    public void setEpfoSalary(String epfoSalary) { this.epfoSalary = epfoSalary; }
+
     public String getEpfDeduction() { return epfDeduction; }
     public void setEpfDeduction(String epfDeduction) { this.epfDeduction = epfDeduction; }
 
     public String getEsiDeduction() { return esiDeduction; }
     public void setEsiDeduction(String esiDeduction) { this.esiDeduction = esiDeduction; }
+
+    public String getAdvanceDeduction() { return advanceDeduction; }
+    public void setAdvanceDeduction(String advanceDeduction) { this.advanceDeduction = advanceDeduction; }
 
     public String getOtherDeductions() { return otherDeductions; }
     public void setOtherDeductions(String otherDeductions) { this.otherDeductions = otherDeductions; }
