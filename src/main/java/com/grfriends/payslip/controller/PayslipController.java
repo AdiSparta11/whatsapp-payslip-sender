@@ -130,10 +130,10 @@ public class PayslipController {
                             DispatchResult.Status.SENT, statusMsg, true));
                     sentCount++;
                 } else {
-                    // Real WhatsApp Dispatch via Meta Cloud API
+                    // Real WhatsApp Dispatch via Meta Cloud API using approved Template Message
                     try {
                         String mediaId = whatsAppService.uploadPdfMedia(pdfBytes, filename);
-                        whatsAppService.sendDocumentMessage(emp.getPhoneNumber(), mediaId, filename, caption);
+                        whatsAppService.sendPayslipTemplate(emp.getPhoneNumber(), mediaId, filename, emp.getName(), emp.getMonth(), emp.getYear(), null);
 
                         results.add(DispatchResult.sent(idx, emp.getName(), emp.getUan(), emp.getPhoneNumber()));
                         sentCount++;

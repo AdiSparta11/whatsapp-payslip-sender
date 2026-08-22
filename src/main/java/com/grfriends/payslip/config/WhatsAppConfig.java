@@ -13,6 +13,7 @@ public class WhatsAppConfig {
     private String phoneNumberId;
     private String accessToken;
     private String apiVersion = "v21.0";
+    private String templateName = "monthly_payslip";
 
     public String getPhoneNumberId() {
         return phoneNumberId;
@@ -36,6 +37,14 @@ public class WhatsAppConfig {
 
     public void setApiVersion(String apiVersion) {
         this.apiVersion = apiVersion;
+    }
+
+    public String getTemplateName() {
+        return templateName;
+    }
+
+    public void setTemplateName(String templateName) {
+        this.templateName = templateName;
     }
 
     /**

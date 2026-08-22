@@ -126,4 +126,79 @@ public class WhatsAppService {
 
         throw new RuntimeException("Failed to send message via Meta API. Response: " + response.getBody());
     }
+
+    /**
+     * Sends an approved WhatsApp Template message with PDF document header and body text parameters.
+     * Required by Meta Cloud API for outbound business-initiated messaging outside 24h service window.
+     */
+    public String sendPayslipTemplate(String recipientPhone, String mediaId, String filename,
+                                       String employeeName, String month, String year,
+                                       String templateNameOverride) throws Exception {
+        if (config.getAccessToken() == null || config.getAccessToken().startsWith("REPLACE_")) {
+            throw new IllegalStateException("Meta Access Token is not configured in application.properties");
+        }
+
+        String targetTemplate = (templateNameOverride != null && !templateNameOverride.isBlank())
+                ? templateNameOverride
+                : config.getTemplateName();
+
+        String cleanPhone = recipientPhone.replaceAll("\\D", "");
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(config.getAccessToken());
+
+        // Header component with document media_id & filename
+        Map<String, Object> headerDoc = new HashMap<>();
+        headerDoc.put("id", mediaId);
+        headerDoc.put("filename", filename);
+
+        Map<String, Object> headerParam = new HashMap<>();
+        headerParam.put("type", "document");
+        headerParam.put("document", headerDoc);
+
+        Map<String, Object> headerComponent = new HashMap<>();
+        headerComponent.put("type", "header");
+        headerComponent.put("parameters", java.util.List.of(headerParam));
+
+        // Body component with text parameters {{1}} = name, {{2}} = month, {{3}} = year
+        Map<String, Object> bodyComponent = new HashMap<>();
+        bodyComponent.put("type", "body");
+        bodyComponent.put("parameters", java.util.List.of(
+                Map.of("type", "text", "text", employeeName != null ? employeeName : "Workman"),
+                Map.of("type", "text", "text", month != null ? month : "JULY"),
+                Map.of("type", "text", "text", year != null ? year : "2026")
+        ));
+
+        Map<String, Object> templateObj = new HashMap<>();
+        templateObj.put("name", targetTemplate);
+        templateObj.put("language", Map.of("code", "en"));
+        templateObj.put("components", java.util.List.of(headerComponent, bodyComponent));
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("messaging_product", "whatsapp");
+        payload.put("recipient_type", "individual");
+        payload.put("to", cleanPhone);
+        payload.put("type", "template");
+        payload.put("template", templateObj);
+
+        String jsonBody = objectMapper.writeValueAsString(payload);
+        HttpEntity<String> requestEntity = new HttpEntity<>(jsonBody, headers);
+
+        String messagesUrl = config.getMessagesUrl();
+        log.info("Sending template '{}' message to {} (media_id: {})...", targetTemplate, cleanPhone, mediaId);
+
+        ResponseEntity<String> response = restTemplate.exchange(messagesUrl, HttpMethod.POST, requestEntity, String.class);
+
+        if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+            JsonNode root = objectMapper.readTree(response.getBody());
+            if (root.has("messages") && root.get("messages").isArray() && root.get("messages").size() > 0) {
+                String wamid = root.get("messages").get(0).get("id").asText();
+                log.info("Template message sent successfully to {}. Message ID: {}", cleanPhone, wamid);
+                return wamid;
+            }
+        }
+
+        throw new RuntimeException("Failed to send template message via Meta API. Response: " + response.getBody());
+    }
 }
