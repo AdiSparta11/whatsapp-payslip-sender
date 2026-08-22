@@ -18,7 +18,8 @@ A Spring Boot web application that parses statutory Form XVII Excel wage registe
 2. **`PdfGeneratorService.java`**:
    - Generates OpenPDF payslips itemizing earnings and deductions line items into balanced table rows.
 3. **`WhatsAppService.java` & `WhatsAppConfig.java`**:
-   - Handles HTTP integration with Meta Cloud API (`v21.0`) to send payslips via WhatsApp.
+   - Handles HTTP integration with Meta Cloud API (`v21.0`).
+   - Uses Meta-approved Template messages (`type: "template"`, default `monthly_payslip`) with document header (`media_id`) and body parameters (`{{1}}` name, `{{2}}` month, `{{3}}` year) for outbound business-initiated messaging outside 24h window.
 4. **Deployment Setup**:
    - Multi-stage `Dockerfile` (Maven build + Alpine JRE runtime).
    - `render.yaml` for free one-click hosting on Render.com.
@@ -28,6 +29,7 @@ A Spring Boot web application that parses statutory Form XVII Excel wage registe
 ## 🔑 Environment & Credentials Needed
 - `WHATSAPP_PHONE_NUMBER_ID`: Meta WhatsApp Phone Number ID
 - `WHATSAPP_ACCESS_TOKEN`: Meta Access Token / System User Permanent Token
+- `WHATSAPP_TEMPLATE_NAME`: Approved Meta Message Template name (default: `monthly_payslip`)
 
 ---
 
@@ -35,10 +37,11 @@ A Spring Boot web application that parses statutory Form XVII Excel wage registe
 - Fixed two-row header bug in `ExcelParserService`.
 - Expanded `Employee` model with itemized allowance fields.
 - Added synthetic 2-row header POI unit test (`ExcelParserServiceTest.java`).
+- Switched outbound WhatsApp dispatch to Meta approved Template messages (`sendPayslipTemplate`).
 - Committed & pushed all changes to `main` branch on GitHub.
 
 ---
 
 ## 🎯 Current Status / Next Step
-- Meta Business Account & WhatsApp Cloud API Setup.
+- Meta Business Account setup & creating/approving `monthly_payslip` template in Meta dashboard.
 - Deployment to Render.com.
