@@ -3,6 +3,7 @@ package com.grfriends.payslip.service;
 import com.grfriends.payslip.model.Employee;
 import com.lowagie.text.*;
 import com.lowagie.text.pdf.BaseFont;
+import com.lowagie.text.pdf.PdfContentByte;
 import com.lowagie.text.pdf.PdfPCell;
 import com.lowagie.text.pdf.PdfPTable;
 import com.lowagie.text.pdf.PdfWriter;
@@ -30,9 +31,20 @@ public class PdfGeneratorService {
     public byte[] generatePayslipPdf(Employee emp) throws Exception {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         Document document = new Document(PageSize.A4, 32, 32, 32, 32);
-        PdfWriter.getInstance(document, out);
+        PdfWriter writer = PdfWriter.getInstance(document, out);
 
         document.open();
+
+        // Draw a card-style border frame around the page content, independent of any
+        // text flow (a plain rectangle on the background layer can't disturb table/cell layout).
+        PdfContentByte borderCanvas = writer.getDirectContentUnder();
+        borderCanvas.saveState();
+        borderCanvas.setColorStroke(new Color(191, 205, 224));
+        borderCanvas.setLineWidth(1.2f);
+        borderCanvas.rectangle(document.left() - 8, document.bottom() - 8,
+                (document.right() - document.left()) + 16, (document.top() - document.bottom()) + 16);
+        borderCanvas.stroke();
+        borderCanvas.restoreState();
 
         // 1. English Fonts (Helvetica for reliable ASCII/Latin numbers and values)
         Font engTitleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 13, new Color(15, 23, 42));
@@ -183,22 +195,22 @@ public class PdfGeneratorService {
         Phrase netLabelPhrase = createTrilingualPhrase("NET PAYABLE", "कुल राशि", "মোট প্রদেয় টাকা",
                 engBoldFont, hinBoldFont, benBoldFont);
         PdfPCell netLabelCell = new PdfPCell(netLabelPhrase);
-        netLabelCell.setBackgroundColor(new Color(226, 232, 240));
+        netLabelCell.setBackgroundColor(new Color(219, 234, 254));
         netLabelCell.setPadding(5);
         payTable.addCell(netLabelCell);
 
         Phrase netValPhrase = new Phrase("Rs. " + formatAmount(defaultVal(emp.getNetPayable(), "0.00")), engBoldFont);
         PdfPCell netValCell = new PdfPCell(netValPhrase);
-        netValCell.setBackgroundColor(new Color(226, 232, 240));
+        netValCell.setBackgroundColor(new Color(219, 234, 254));
         netValCell.setPadding(5);
         payTable.addCell(netValCell);
 
         PdfPCell emptyCell1 = new PdfPCell(new Phrase("", engNormalFont));
-        emptyCell1.setBackgroundColor(new Color(226, 232, 240));
+        emptyCell1.setBackgroundColor(new Color(219, 234, 254));
         payTable.addCell(emptyCell1);
 
         PdfPCell emptyCell2 = new PdfPCell(new Phrase("", engNormalFont));
-        emptyCell2.setBackgroundColor(new Color(226, 232, 240));
+        emptyCell2.setBackgroundColor(new Color(219, 234, 254));
         payTable.addCell(emptyCell2);
 
         document.add(payTable);
@@ -256,7 +268,7 @@ public class PdfGeneratorService {
                                Font engFont, Font hinFont, Font benFont) {
         Phrase phrase = createTrilingualPhrase(engText, hinText, benText, engFont, hinFont, benFont);
         PdfPCell cell = new PdfPCell(phrase);
-        cell.setBackgroundColor(new Color(30, 41, 59));
+        cell.setBackgroundColor(new Color(51, 91, 158));
         cell.setPadding(5);
         cell.setBorderColor(new Color(203, 213, 225));
         table.addCell(cell);
@@ -302,7 +314,7 @@ public class PdfGeneratorService {
         PdfPCell c4 = new PdfPCell(dAmtPhrase);
 
         for (PdfPCell c : new PdfPCell[]{c1, c2, c3, c4}) {
-            c.setBackgroundColor(new Color(241, 245, 249));
+            c.setBackgroundColor(new Color(239, 246, 255));
             c.setPadding(5);
             c.setBorderColor(new Color(203, 213, 225));
             table.addCell(c);
