@@ -39,6 +39,7 @@ A Spring Boot web application that parses statutory Form XVII Excel wage registe
 - Added dual-key matching on UAN No and ESI No with NA/invalid phone handling.
 - Embedded NotoSansDevanagari-Regular.ttf alongside NotoSansBengali-Regular.ttf for Trilingual (English / Hindi / Bengali) PDF generation.
 - Corrected Hindi and Bengali terminology and spellings (e.g. मूल वेतन / মূল মজুরি, मकान किराया भत्ता / বাড়ি ভাড়া ভাতা, महंगाई भत्ता / মহার্ঘ ভাতা, Gross earnings: संपूर्ण वेतन, Net payable: कुल राशि).
+- Fixed WhatsApp contact phone parsing: dynamic multi-row header detection (`detectContactColumns`) supporting `WHATS APP No.` with spaces/newlines, integrated POI `DataFormatter`, added row-wide fallback cell scanner for valid Indian mobile numbers (`[6-9]XXXXXXXXX`), and enhanced phone sanitizer for 10/11/12-digit numbers and unicode spaces.
 - Committed & pushed all changes to `main` branch on GitHub triggering auto-deploy on Render.com.
 
 ---

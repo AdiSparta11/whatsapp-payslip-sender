@@ -215,11 +215,25 @@ class ExcelParserServiceTest {
         r3.createCell(29).setCellValue(1606.0);
         r3.createCell(30).setCellValue(11621.0);
 
+        // Employee 4: RAJU SHARMA (Has NA in WhatsApp tab)
+        Row r4 = wageSheet.createRow(13);
+        r4.createCell(0).setCellValue(4);
+        r4.createCell(1).setCellValue("RAJU SHARMA");
+        r4.createCell(2).setCellValue("100444555666");
+        r4.createCell(3).setCellValue("4109998887");
+        r4.createCell(4).setCellValue("WORKMAN");
+        r4.createCell(5).setCellValue(20);
+        r4.createCell(10).setCellValue(525.0);
+        r4.createCell(11).setCellValue(11025.0);
+        r4.createCell(23).setCellValue(13227.0);
+        r4.createCell(29).setCellValue(1606.0);
+        r4.createCell(30).setCellValue(11621.0);
+
         // 2. PAYSLIP Tab (should be ignored by parser)
         Sheet payslipSheet = workbook.createSheet("PAYSLIP");
         payslipSheet.createRow(0).createCell(0).setCellValue("PAY SLIP VIEW");
 
-        // 3. WHATS APP NO. Tab
+        // 3. WHATS APP NO. Tab (with space in header "WHATS APP No.")
         Sheet contactSheet = workbook.createSheet("WHATS APP NO.");
         Row cRow1 = contactSheet.createRow(0);
         cRow1.createCell(0).setCellValue("Name & address of contractor : FRIENDS ENTERPRISE");
@@ -229,7 +243,7 @@ class ExcelParserServiceTest {
         cRow5.createCell(1).setCellValue("Name of Workman");
         cRow5.createCell(2).setCellValue("UAN No.");
         cRow5.createCell(3).setCellValue("E.S.I No.");
-        cRow5.createCell(4).setCellValue("WHATSAPP No.");
+        cRow5.createCell(4).setCellValue("WHATS APP No.");
 
         // Contact 1: MANOJ YADAV -> Match on UAN
         Row cr1 = contactSheet.createRow(5);
@@ -239,13 +253,13 @@ class ExcelParserServiceTest {
         cr1.createCell(3).setCellValue("4108643725");
         cr1.createCell(4).setCellValue("8967840595");
 
-        // Contact 2: LAKHI NARAYAN LOHAR -> NA
+        // Contact 2: LAKHI NARAYAN LOHAR -> numeric 8101617475.0
         Row cr2 = contactSheet.createRow(6);
         cr2.createCell(0).setCellValue(2);
         cr2.createCell(1).setCellValue("LAKHI NARAYAN LOHAR");
         cr2.createCell(2).setCellValue("100202820575");
         cr2.createCell(3).setCellValue("4108661222");
-        cr2.createCell(4).setCellValue("NA");
+        cr2.createCell(4).setCellValue(8101617475.0);
 
         // Contact 3: SANJAY PANDIT -> Blank UAN, matched via ESI No. 4108663553
         Row cr3 = contactSheet.createRow(7);
@@ -254,6 +268,14 @@ class ExcelParserServiceTest {
         cr3.createCell(2).setCellValue("");
         cr3.createCell(3).setCellValue("4108663553");
         cr3.createCell(4).setCellValue("8617469384");
+
+        // Contact 4: RAJU SHARMA -> NA
+        Row cr4 = contactSheet.createRow(8);
+        cr4.createCell(0).setCellValue(4);
+        cr4.createCell(1).setCellValue("RAJU SHARMA");
+        cr4.createCell(2).setCellValue("100444555666");
+        cr4.createCell(3).setCellValue("4109998887");
+        cr4.createCell(4).setCellValue("NA");
 
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         workbook.write(out);
@@ -264,7 +286,7 @@ class ExcelParserServiceTest {
                 excelParserService.parseSingleWorkbook(new ByteArrayInputStream(out.toByteArray()));
 
         List<Employee> employees = result.employees();
-        assertEquals(3, employees.size(), "Should parse 3 employees from wage sheet");
+        assertEquals(4, employees.size(), "Should parse 4 employees from wage sheet");
 
         // Validate Employee 1: MANOJ YADAV matched by UAN
         Employee e1 = employees.get(0);
@@ -273,18 +295,46 @@ class ExcelParserServiceTest {
         assertEquals("+918967840595", e1.getPhoneNumber());
         assertTrue(e1.hasPhone());
 
-        // Validate Employee 2: LAKHI NARAYAN LOHAR has NA
+        // Validate Employee 2: LAKHI NARAYAN LOHAR has valid phone parsed from numeric cell
         Employee e2 = employees.get(1);
         assertEquals("LAKHI NARAYAN LOHAR", e2.getName());
-        assertNull(e2.getPhoneNumber(), "Should have null phone because value was NA");
-        assertFalse(e2.hasPhone());
-        assertTrue(result.contactStore().isKnown(e2.getUan(), e2.getEsiNo(), e2.getName()),
-                "Should recognize employee exists in contact sheet despite NA phone");
+        assertEquals("100202820575", e2.getUan());
+        assertEquals("+918101617475", e2.getPhoneNumber(), "Should match 8101617475 to +918101617475");
+        assertTrue(e2.hasPhone());
 
         // Validate Employee 3: SANJAY PANDIT matched by ESI No. fallback
         Employee e3 = employees.get(2);
         assertEquals("SANJAY PANDIT", e3.getName());
         assertEquals("+918617469384", e3.getPhoneNumber(), "Should match phone using ESI fallback");
         assertTrue(e3.hasPhone());
+
+        // Validate Employee 4: RAJU SHARMA has NA
+        Employee e4 = employees.get(3);
+        assertEquals("RAJU SHARMA", e4.getName());
+        assertNull(e4.getPhoneNumber(), "Should have null phone because value was NA");
+        assertFalse(e4.hasPhone());
+        assertTrue(result.contactStore().isKnown(e4.getUan(), e4.getEsiNo(), e4.getName()),
+                "Should recognize employee exists in contact sheet despite NA phone");
+    }
+
+    @Test
+    void testSanitizePhoneNumberVariations() {
+        assertEquals("+918101617475", excelParserService.sanitizePhoneNumber("8101617475"));
+        assertEquals("+918101617475", excelParserService.sanitizePhoneNumber("08101617475"));
+        assertEquals("+918101617475", excelParserService.sanitizePhoneNumber("918101617475"));
+        assertEquals("+918101617475", excelParserService.sanitizePhoneNumber("+918101617475"));
+        assertEquals("+918101617475", excelParserService.sanitizePhoneNumber("+91 81016 17475"));
+        assertEquals("+918101617475", excelParserService.sanitizePhoneNumber("8101617475.0"));
+        assertEquals("+918101617475", excelParserService.sanitizePhoneNumber("8101617475.00"));
+        assertEquals("+918101617475", excelParserService.sanitizePhoneNumber("\u00A08101617475\u00A0"));
+
+        assertNull(excelParserService.sanitizePhoneNumber("NA"));
+        assertNull(excelParserService.sanitizePhoneNumber("N/A"));
+        assertNull(excelParserService.sanitizePhoneNumber("NIL"));
+        assertNull(excelParserService.sanitizePhoneNumber("NONE"));
+        assertNull(excelParserService.sanitizePhoneNumber("NULL"));
+        assertNull(excelParserService.sanitizePhoneNumber("-"));
+        assertNull(excelParserService.sanitizePhoneNumber(null));
+        assertNull(excelParserService.sanitizePhoneNumber(""));
     }
 }

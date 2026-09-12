@@ -25,6 +25,7 @@ import java.util.regex.Pattern;
 public class ExcelParserService {
 
     private static final Logger log = LoggerFactory.getLogger(ExcelParserService.class);
+    private final DataFormatter dataFormatter = new DataFormatter();
 
     // Keywords to detect the header row in the wage sheet
     private static final List<String> WAGE_HEADER_KEYWORDS = List.of(
@@ -34,7 +35,7 @@ public class ExcelParserService {
 
     // Keywords to detect the header row in the WhatsApp contact sheet
     private static final List<String> CONTACT_HEADER_KEYWORDS = List.of(
-            "whatsapp", "phone", "mobile", "uan no", "uan", "esi no", "e.s.i", "name of workman", "workman"
+            "whatsapp", "whats app", "phone", "mobile", "contact", "uan no", "uan", "esi no", "e.s.i", "name of workman", "workman"
     );
 
     // Fixed POI 0-indexed column locations for Form XVII statutory wage sheet layout
@@ -325,32 +326,62 @@ public class ExcelParserService {
         if (sheet == null) return store;
 
         int headerRowIdx = findContactHeaderRow(sheet);
-        Row headerRow = sheet.getRow(headerRowIdx);
-        Map<String, Integer> columnMap = buildColumnMap(headerRow);
-        log.info("Contact Sheet '{}' detected header row at index {} with columns: {}",
-                sheet.getSheetName(), headerRowIdx, columnMap);
+        ContactColumns cols = detectContactColumns(sheet, headerRowIdx);
+        log.info("Contact Sheet '{}' detected header row at index {} with columns: Name={}, UAN={}, ESI={}, Phone={}",
+                sheet.getSheetName(), headerRowIdx, cols.nameCol(), cols.uanCol(), cols.esiCol(), cols.phoneCol());
 
         for (int r = headerRowIdx + 1; r <= sheet.getLastRowNum(); r++) {
             Row row = sheet.getRow(r);
             if (row == null) continue;
 
-            String uan = getCellString(row, columnMap, "uan no.", "uan no", "uan");
-            if (uan == null) uan = getCellByIndex(row, 2); // Column C fallback
-            uan = normalizeUan(uan);
+            String uan = normalizeUan(getCellByIndex(row, cols.uanCol()));
+            String esi = normalizeDigitsOnly(getCellByIndex(row, cols.esiCol()));
+            String name = getCellByIndex(row, cols.nameCol());
 
-            String esi = getCellString(row, columnMap, "e.s.i no.", "e.s.i no", "esi no.", "esi no", "esi", "esic");
-            if (esi == null) esi = getCellByIndex(row, 3); // Column D fallback
-            esi = normalizeDigitsOnly(esi);
+            // Resilient UAN fallback: if null or invalid, scan row for 12-digit UAN starting with "10"
+            if (uan == null || uan.length() < 10) {
+                for (int c = 0; c < row.getLastCellNum(); c++) {
+                    String cand = normalizeUan(getCellByIndex(row, c));
+                    if (cand != null && cand.length() == 12 && cand.startsWith("10")) {
+                        uan = cand;
+                        break;
+                    }
+                }
+            }
 
-            String name = getCellString(row, columnMap, "name of workman", "workman", "name");
-            if (name == null) name = getCellByIndex(row, 1); // Column B fallback
+            // Resilient ESI fallback: if null or invalid, scan row for 10-digit ESI starting with "4"
+            if (esi == null || esi.length() < 8) {
+                for (int c = 0; c < row.getLastCellNum(); c++) {
+                    String cand = normalizeDigitsOnly(getCellByIndex(row, c));
+                    if (cand != null && cand.length() == 10 && (cand.startsWith("4") || cand.startsWith("3"))) {
+                        esi = cand;
+                        break;
+                    }
+                }
+            }
 
-            String rawPhone = getCellString(row, columnMap,
-                    "whatsapp no.", "whatsapp no", "whatsapp number", "whatsapp phone number", "whatsapp",
-                    "phone number", "phone", "mobile", "contact", "number");
-            if (rawPhone == null) rawPhone = getCellByIndex(row, 4); // Column E fallback
-
+            // Primary phone candidate from detected phone column
+            String rawPhone = getCellByIndex(row, cols.phoneCol());
             String phone = sanitizePhoneNumber(rawPhone);
+
+            // Row-wide fallback scanner: If phone is null or invalid, scan all other cells in this row
+            if (phone == null) {
+                for (int c = 0; c < row.getLastCellNum(); c++) {
+                    if (c == cols.uanCol() || c == cols.esiCol() || c == cols.nameCol() || c == 0) {
+                        continue; // Skip UAN, ESI, Name, and Serial No columns
+                    }
+                    String candidate = getCellByIndex(row, c);
+                    if (isValidMobileNumber(candidate)) {
+                        String sanitizedCandidate = sanitizePhoneNumber(candidate);
+                        if (sanitizedCandidate != null) {
+                            log.info("Contact row {}: Discovered valid mobile phone '{}' in column {}", r, candidate, c);
+                            phone = sanitizedCandidate;
+                            rawPhone = candidate;
+                            break;
+                        }
+                    }
+                }
+            }
 
             // Skip empty rows without identity
             if ((uan == null || uan.isBlank()) && (esi == null || esi.isBlank()) && (name == null || name.isBlank())) {
@@ -358,9 +389,12 @@ public class ExcelParserService {
             }
 
             // Skip headers/totals
-            if (name != null && (name.equalsIgnoreCase("NAME OF WORKMAN") || name.equalsIgnoreCase("TOTAL"))) {
+            if (name != null && (name.equalsIgnoreCase("NAME OF WORKMAN") || name.equalsIgnoreCase("TOTAL") || name.equalsIgnoreCase("GRAND TOTAL"))) {
                 continue;
             }
+
+            log.info("Parsed contact row {}: name='{}', uan='{}', esi='{}', rawPhone='{}' -> phone='{}'",
+                    r, name, uan, esi, rawPhone, phone);
 
             store.addContact(uan, esi, name, phone);
         }
@@ -523,6 +557,81 @@ public class ExcelParserService {
         return bestRow;
     }
 
+    public record ContactColumns(int nameCol, int uanCol, int esiCol, int phoneCol) {}
+
+    /**
+     * Resiliently detect column indices in the contact sheet by inspecting the header row
+     * and adjacent rows, matching normalized text against keywords.
+     */
+    public ContactColumns detectContactColumns(Sheet sheet, int headerRowIdx) {
+        int nameCol = -1;
+        int uanCol = -1;
+        int esiCol = -1;
+        int phoneCol = -1;
+
+        int startR = Math.max(0, headerRowIdx - 1);
+        int endR = Math.min(sheet.getLastRowNum(), headerRowIdx + 2);
+
+        for (int r = startR; r <= endR; r++) {
+            Row row = sheet.getRow(r);
+            if (row == null) continue;
+
+            for (int c = 0; c < row.getLastCellNum(); c++) {
+                Cell cell = row.getCell(c);
+                if (cell == null) continue;
+                String text = getCellValueAsString(cell).replaceAll("[^a-zA-Z]", "").toLowerCase();
+
+                if (phoneCol == -1 && (text.contains("whatsapp") || text.contains("phone") || text.contains("mobile") || text.contains("contact") || text.contains("cell"))) {
+                    phoneCol = c;
+                }
+                if (uanCol == -1 && text.contains("uan")) {
+                    uanCol = c;
+                }
+                if (esiCol == -1 && text.contains("esi")) {
+                    esiCol = c;
+                }
+                if (nameCol == -1 && (text.contains("workman") || text.contains("employee") || (text.contains("name") && !text.contains("contractor") && !text.contains("principal")))) {
+                    nameCol = c;
+                }
+            }
+        }
+
+        // Form XVII contact tab fallback defaults if header labels were omitted/unmatched
+        if (nameCol == -1) nameCol = 1;
+        if (uanCol == -1) uanCol = 2;
+        if (esiCol == -1) esiCol = 3;
+        if (phoneCol == -1) phoneCol = 4;
+
+        log.info("Detected contact sheet columns: Name={}, UAN={}, ESI={}, Phone={}",
+                nameCol, uanCol, esiCol, phoneCol);
+        return new ContactColumns(nameCol, uanCol, esiCol, phoneCol);
+    }
+
+    private boolean isValidMobileNumber(String raw) {
+        if (raw == null || raw.isBlank()) return false;
+        String cleaned = raw.replace('\u00A0', ' ').replace('\u200B', ' ').trim().toUpperCase();
+        if (cleaned.equals("NA") || cleaned.equals("N/A") || cleaned.equals("NIL") || cleaned.equals("NONE") || cleaned.equals("NULL")) {
+            return false;
+        }
+
+        // Strip trailing decimal artifacts e.g. .00 or .0
+        if (cleaned.endsWith(".00")) {
+            cleaned = cleaned.substring(0, cleaned.length() - 3);
+        } else if (cleaned.endsWith(".0")) {
+            cleaned = cleaned.substring(0, cleaned.length() - 2);
+        }
+
+        String digits = cleaned.replaceAll("\\D", "");
+        if (digits.length() == 11 && digits.startsWith("0")) {
+            digits = digits.substring(1);
+        }
+        if (digits.length() == 12 && digits.startsWith("91")) {
+            digits = digits.substring(2);
+        }
+        // Valid Indian mobile numbers are 10 digits starting with 6, 7, 8, or 9
+        return digits.length() == 10 && (digits.startsWith("6") || digits.startsWith("7") || digits.startsWith("8") || digits.startsWith("9"));
+    }
+
     // =================================================================
     // Cell & String Helpers
     // =================================================================
@@ -544,7 +653,7 @@ public class ExcelParserService {
     }
 
     private String getCellByIndex(Row row, int colIdx) {
-        if (row == null) return null;
+        if (row == null || colIdx < 0) return null;
         Cell cell = row.getCell(colIdx);
         if (cell == null) return null;
         String val = getCellValueAsString(cell).trim();
@@ -614,6 +723,14 @@ public class ExcelParserService {
     private String getCellValueAsString(Cell cell) {
         if (cell == null) return "";
 
+        try {
+            String formatted = dataFormatter.formatCellValue(cell);
+            if (formatted != null && !formatted.isBlank()) {
+                return formatted.trim();
+            }
+        } catch (Exception ignored) {
+        }
+
         return switch (cell.getCellType()) {
             case STRING -> cell.getStringCellValue();
             case NUMERIC -> {
@@ -663,33 +780,55 @@ public class ExcelParserService {
         return digits.isEmpty() ? null : digits;
     }
 
-    private String sanitizePhoneNumber(String rawPhone) {
+    public String sanitizePhoneNumber(String rawPhone) {
         if (rawPhone == null || rawPhone.isBlank()) return null;
 
-        String phone = rawPhone.trim().toUpperCase();
+        // Clean non-breaking spaces and invisible characters
+        String phone = rawPhone.replace('\u00A0', ' ')
+                               .replace('\u200B', ' ')
+                               .trim().toUpperCase();
+
         // Check common placeholders
         if (phone.equals("NA") || phone.equals("N/A") || phone.equals("NIL") ||
-            phone.equals("NONE") || phone.equals("NULL") || phone.equals("-") || phone.equals("--")) {
+            phone.equals("NONE") || phone.equals("NULL") || phone.equals("-") ||
+            phone.equals("--") || phone.equals("NOT AVAILABLE") || phone.equals("NO")) {
             return null;
         }
 
-        if (phone.endsWith(".0")) {
+        // Remove numeric trailing decimals like .00 or .0
+        if (phone.endsWith(".00")) {
+            phone = phone.substring(0, phone.length() - 3);
+        } else if (phone.endsWith(".0")) {
             phone = phone.substring(0, phone.length() - 2);
         }
 
-        boolean hasPlus = rawPhone.trim().startsWith("+");
+        boolean hasPlus = phone.startsWith("+");
         String digits = phone.replaceAll("\\D", "");
 
         if (digits.isEmpty()) return null;
 
-        if (hasPlus) {
+        // If 11 digits starting with 0 (e.g. 08101617475) -> strip leading 0
+        if (digits.length() == 11 && digits.startsWith("0")) {
+            digits = digits.substring(1);
+        }
+
+        // Indian 10-digit mobile number -> prepend +91
+        if (digits.length() == 10) {
+            return "+91" + digits;
+        }
+
+        // 12-digit number starting with 91 (e.g. 918101617475)
+        if (digits.length() == 12 && digits.startsWith("91")) {
             return "+" + digits;
-        } else if (digits.length() == 10) {
-            return "+91" + digits;   // Indian 10-digit -> prepend +91
-        } else if (digits.length() == 12 && digits.startsWith("91")) {
-            return "+" + digits;     // 91XXXXXXXXXX -> +91XXXXXXXXXX
-        } else if (digits.length() > 10) {
-            return "+" + digits;     // Already has country code
+        }
+
+        // International with plus and valid length (10 to 15 digits)
+        if (hasPlus && digits.length() >= 10 && digits.length() <= 15) {
+            return "+" + digits;
+        }
+
+        if (digits.length() > 10 && digits.length() <= 15) {
+            return "+" + digits;
         }
 
         return null;
