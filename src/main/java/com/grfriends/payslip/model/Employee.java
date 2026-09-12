@@ -40,6 +40,7 @@ public class Employee {
     private String year;         // e.g. "2026"
     private String contractorName; // e.g. "FRIENDS ENTERPRISE", "B.P. TRANSPORT"
     private String siteName; // e.g. "GRAPHITE INDIA LIMITED, DURGAPUR - 11", from the PAYSILP sheet
+    private String contractorAddress; // e.g. "DURGAPUR - 12", from the PAYSILP sheet's company line
 
     // --- Getters and Setters ---
 
@@ -144,6 +145,9 @@ public class Employee {
 
     public String getSiteName() { return siteName; }
     public void setSiteName(String siteName) { this.siteName = siteName; }
+
+    public String getContractorAddress() { return contractorAddress; }
+    public void setContractorAddress(String contractorAddress) { this.contractorAddress = contractorAddress; }
 
     /**
      * Whether this employee has a phone number matched from the contact master.

@@ -164,10 +164,13 @@ public class ExcelParserService {
 
         String siteName = detectSiteName(workbook);
         log.info("Detected site name: {}", siteName);
-        if (siteName != null) {
-            for (Employee emp : employees) {
-                emp.setSiteName(siteName);
-            }
+
+        String contractorAddress = detectContractorAddress(workbook);
+        log.info("Detected contractor address: {}", contractorAddress);
+
+        for (Employee emp : employees) {
+            if (siteName != null) emp.setSiteName(siteName);
+            if (contractorAddress != null) emp.setContractorAddress(contractorAddress);
         }
 
         Sheet contactSheet = findBestContactSheet(workbook);
@@ -919,6 +922,37 @@ public class ExcelParserService {
                         if (!cleaned.isBlank()) {
                             return cleaned;
                         }
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Detects the contractor's registered address/unit suffix (e.g. "DURGAPUR - 12")
+     * from the PAYSILP sheet's "M/S. <contractor>, DURGAPUR - 12 ," company line, so it
+     * can be appended after the contractor name on the PDF. Only the location suffix is
+     * used (not the contractor name itself, which the PAYSILP sheet sometimes misspells
+     * e.g. "FRENDS" instead of "FRIENDS") — the correctly spelled name already comes
+     * from the wage sheet via detectContractorName().
+     */
+    private String detectContractorAddress(Workbook workbook) {
+        Pattern addressPattern = Pattern.compile("DURGAPUR\\s*-?\\s*(\\d+)", Pattern.CASE_INSENSITIVE);
+        for (int i = 0; i < workbook.getNumberOfSheets(); i++) {
+            Sheet sheet = workbook.getSheetAt(i);
+            String sheetName = sheet.getSheetName().toUpperCase();
+            if (!sheetName.contains("PAYSILP") && !sheetName.contains("PAYSLIP")) continue;
+
+            for (int r = 0; r <= Math.min(5, sheet.getLastRowNum()); r++) {
+                Row row = sheet.getRow(r);
+                if (row == null) continue;
+                for (int c = 0; c < row.getLastCellNum(); c++) {
+                    String text = getCellByIndex(row, c);
+                    if (text == null || !text.toUpperCase().contains("M/S.")) continue;
+                    Matcher matcher = addressPattern.matcher(text);
+                    if (matcher.find()) {
+                        return "DURGAPUR - " + matcher.group(1);
                     }
                 }
             }

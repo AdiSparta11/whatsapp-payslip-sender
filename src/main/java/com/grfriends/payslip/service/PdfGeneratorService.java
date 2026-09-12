@@ -77,7 +77,9 @@ public class PdfGeneratorService {
 
         // --- Header Section (English title, translations as a smaller line below) ---
         String contractorRaw = defaultVal(emp.getContractorName(), "FRIENDS ENTERPRISE");
-        Paragraph title = new Paragraph("M/S. " + contractorRaw, engTitleFont);
+        String contractorTitleText = "M/S. " + contractorRaw
+                + (emp.getContractorAddress() != null ? ", " + emp.getContractorAddress() : "");
+        Paragraph title = new Paragraph(contractorTitleText, engTitleFont);
         title.setAlignment(Element.ALIGN_CENTER);
         document.add(title);
 
@@ -92,7 +94,7 @@ public class PdfGeneratorService {
             document.add(titleTranslationPara);
         }
 
-        String siteRaw = defaultVal(emp.getSiteName(), "GRAPHITE INDIA LIMITED, DURGAPUR");
+        String siteRaw = "Site: " + defaultVal(emp.getSiteName(), "GRAPHITE INDIA LIMITED, DURGAPUR");
         Paragraph site = new Paragraph();
         site.setAlignment(Element.ALIGN_CENTER);
         site.add(createTrilingualPhrase(siteRaw, "ग्रेफाइट इंडिया लिमिटेड, दुर्गापुर", "গ্রাফাইট ইন্ডিয়া লিমিটেড, দুর্গাপুর",
