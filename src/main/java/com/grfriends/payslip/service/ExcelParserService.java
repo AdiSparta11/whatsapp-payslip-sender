@@ -723,6 +723,30 @@ public class ExcelParserService {
     private String getCellValueAsString(Cell cell) {
         if (cell == null) return "";
 
+        // For formula cells, read the cached result value directly (not the formula text)
+        if (cell.getCellType() == CellType.FORMULA) {
+            try {
+                // Try cached string result first
+                String strVal = cell.getStringCellValue();
+                if (strVal != null && !strVal.isBlank()) {
+                    return strVal.trim();
+                }
+            } catch (Exception e) {
+                try {
+                    // Fall back to cached numeric result
+                    double d = cell.getNumericCellValue();
+                    if (d == Math.floor(d) && !Double.isInfinite(d)) {
+                        return String.valueOf((long) d);
+                    }
+                    return String.format("%.2f", d);
+                } catch (Exception e2) {
+                    // Last resort: return formula text
+                    return cell.getCellFormula();
+                }
+            }
+        }
+
+        // For non-formula cells, use DataFormatter for clean formatting (handles number formats, dates, etc.)
         try {
             String formatted = dataFormatter.formatCellValue(cell);
             if (formatted != null && !formatted.isBlank()) {
@@ -741,21 +765,6 @@ public class ExcelParserService {
                 yield String.format("%.2f", d);
             }
             case BOOLEAN -> String.valueOf(cell.getBooleanCellValue());
-            case FORMULA -> {
-                try {
-                    yield String.valueOf(cell.getStringCellValue());
-                } catch (Exception e) {
-                    try {
-                        double d = cell.getNumericCellValue();
-                        if (d == Math.floor(d) && !Double.isInfinite(d)) {
-                            yield String.valueOf((long) d);
-                        }
-                        yield String.format("%.2f", d);
-                    } catch (Exception e2) {
-                        yield cell.getCellFormula();
-                    }
-                }
-            }
             default -> "";
         };
     }
