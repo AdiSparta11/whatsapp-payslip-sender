@@ -35,17 +35,17 @@ A Spring Boot web application that parses statutory Form XVII Excel wage registe
 ---
 
 ## 🚀 Recent Accomplishments
-- Fixed two-row header bug in `ExcelParserService`.
-- Expanded `Employee` model with itemized allowance fields.
-- Added synthetic 2-row header POI unit test (`ExcelParserServiceTest.java`).
-- Pivoted to 100% human-driven manual WhatsApp dispatch dashboard & local ZIP export (`ZipService.java` & `ZipServiceTest.java`).
-- Added browser `localStorage` sent tracking, filter tabs, subset ZIP download, and pre-filled `wa.me` links.
-- Committed & pushed all changes to `main` branch on GitHub.
+- Supported 1-file master Excel workbook containing both the Form XVII wage sheet and WHATS APP NO tabs.
+- Added dual-key matching on UAN No and ESI No with NA/invalid phone handling.
+- Embedded NotoSansDevanagari-Regular.ttf alongside NotoSansBengali-Regular.ttf for Trilingual (English / Hindi / Bengali) PDF generation.
+- Corrected Hindi and Bengali terminology and spellings (e.g. मूल वेतन / মূল মজুরি, मकान किराया भत्ता / বাড়ি ভাড়া ভাতা, महंगाई भत्ता / মহার্ঘ ভাতা).
+- Committed & pushed all changes to `main` branch on GitHub triggering auto-deploy on Render.com.
 
 ---
 
 ## 🎯 Current Status / Next Steps
-1. **Local Usage / Render Deployment**: App is 100% complete and operational locally or on Render.com free tier.
-2. **Monthly Workflow**: Upload Excel registers $\rightarrow$ Download ZIP of 114 PDFs $\rightarrow$ Click `Open Chat` $\rightarrow$ Attach PDF & Send.
+1. **Local Usage / Render Deployment**: App is 100% operational on Render.com (`https://whatsapp-payslip-sender.onrender.com`).
+2. **Monthly Workflow**: Upload single Master Excel file $\rightarrow$ Download ZIP of all generated Trilingual PDFs $\rightarrow$ Click `Open Chat` $\rightarrow$ Send to employees.
+
 
 
