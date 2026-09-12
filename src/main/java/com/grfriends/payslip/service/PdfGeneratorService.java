@@ -276,8 +276,22 @@ public class PdfGeneratorService {
     private static final Pattern BENGALI_PREBASE_MATRA =
             Pattern.compile("((?:[ক-হ]্)*[ক-হ])ি");
 
+    // Bengali vowel sign O canonically decomposes (per the Unicode Character Database) into
+    // E + AA: the E part is pre-base, the AA part is post-base, e.g. "মো" is visually "ে"+"ম"+"া".
+    // OpenPDF has no shaping to split it into those two positioned glyphs, so words like "মোট"
+    // render with a stray/misplaced mark. Devanagari's equivalent isn't formally decomposable
+    // in Unicode, but uses the identical two-part visual convention in standard typography, so
+    // the same fix applies there too. AU is a different, less certain decomposition and is left
+    // alone.
+    private static final Pattern DEVANAGARI_SPLIT_O_MATRA =
+            Pattern.compile("((?:[क-ह]्)*[क-ह])ो");
+    private static final Pattern BENGALI_SPLIT_O_MATRA =
+            Pattern.compile("((?:[ক-হ]্)*[ক-হ])ো");
+
     private String fixPreBaseMatra(String text) {
         if (text == null || text.isEmpty()) return text;
+        text = DEVANAGARI_SPLIT_O_MATRA.matcher(text).replaceAll("े$1ा");
+        text = BENGALI_SPLIT_O_MATRA.matcher(text).replaceAll("ে$1া");
         text = DEVANAGARI_PREBASE_MATRA.matcher(text).replaceAll("ि$1");
         text = BENGALI_PREBASE_MATRA.matcher(text).replaceAll("ি$1");
         return text;
