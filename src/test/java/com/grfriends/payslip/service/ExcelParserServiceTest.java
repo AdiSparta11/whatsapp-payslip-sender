@@ -128,4 +128,163 @@ class ExcelParserServiceTest {
         assertEquals("JULY", emp.getMonth());
         assertEquals("2026", emp.getYear());
     }
+
+    @Test
+    void testParseSingleWorkbookWithWhatsAppTab() throws Exception {
+        Workbook workbook = new XSSFWorkbook();
+
+        // 1. Wage Sheet Tab
+        Sheet wageSheet = workbook.createSheet("FRIENDS ENTERPRISE PAY SHEET");
+        Row h9 = wageSheet.createRow(8);
+        h9.createCell(0).setCellValue("Sl. No.");
+        h9.createCell(1).setCellValue("Name of Workman");
+        h9.createCell(2).setCellValue("UAN No.");
+        h9.createCell(3).setCellValue("E.S.I No.");
+        h9.createCell(4).setCellValue("Designation");
+        h9.createCell(5).setCellValue("No of days Worked");
+        h9.createCell(9).setCellValue("TOTAL DAYS");
+        h9.createCell(10).setCellValue("AMOUNT OF WAGES EARNED");
+        h9.createCell(30).setCellValue("Net Amount Paid Rs.");
+
+        Row h10 = wageSheet.createRow(9);
+        h10.createCell(10).setCellValue("Daily Rate of wages");
+        h10.createCell(11).setCellValue("Basic Wages @Rs. 525.00 PER DAY");
+        h10.createCell(12).setCellValue("DA @Rs.10.00 PER DAY");
+        h10.createCell(13).setCellValue("Washing Allowance");
+        h10.createCell(14).setCellValue("Fuel Allowance");
+        h10.createCell(15).setCellValue("Attn. Allowance");
+        h10.createCell(16).setCellValue("Food Allowance");
+        h10.createCell(17).setCellValue("Gratuity");
+        h10.createCell(18).setCellValue("House Rent Allowance");
+        h10.createCell(23).setCellValue("GROSS TOTAL");
+        h10.createCell(26).setCellValue("EPF");
+        h10.createCell(27).setCellValue("ESIC");
+        h10.createCell(28).setCellValue("Advance");
+        h10.createCell(29).setCellValue("Total Deduction");
+        h10.createCell(30).setCellValue("Net Amount Paid Rs.");
+
+        // Employee 1: MANOJ YADAV
+        Row r1 = wageSheet.createRow(10);
+        r1.createCell(0).setCellValue(1);
+        r1.createCell(1).setCellValue("MANOJ YADAV");
+        r1.createCell(2).setCellValue("100222327291");
+        r1.createCell(3).setCellValue("4108643725");
+        r1.createCell(4).setCellValue("WORKMAN");
+        r1.createCell(5).setCellValue(16);
+        r1.createCell(10).setCellValue(525.0);
+        r1.createCell(11).setCellValue(8925.0);
+        r1.createCell(12).setCellValue(170.0);
+        r1.createCell(13).setCellValue(344.0);
+        r1.createCell(14).setCellValue(320.0);
+        r1.createCell(15).setCellValue(176.0);
+        r1.createCell(16).setCellValue(240.0);
+        r1.createCell(17).setCellValue(64.0);
+        r1.createCell(18).setCellValue(454.75);
+        r1.createCell(23).setCellValue(10694.0);
+        r1.createCell(26).setCellValue(1221.0);
+        r1.createCell(27).setCellValue(78.0);
+        r1.createCell(28).setCellValue(0.0);
+        r1.createCell(29).setCellValue(1299.0);
+        r1.createCell(30).setCellValue(9395.0);
+
+        // Employee 2: LAKHI NARAYAN LOHAR (Has NA in WhatsApp tab)
+        Row r2 = wageSheet.createRow(11);
+        r2.createCell(0).setCellValue(2);
+        r2.createCell(1).setCellValue("LAKHI NARAYAN LOHAR");
+        r2.createCell(2).setCellValue("100202820575");
+        r2.createCell(3).setCellValue("4108661222");
+        r2.createCell(4).setCellValue("WORKMAN");
+        r2.createCell(5).setCellValue(26);
+        r2.createCell(10).setCellValue(525.0);
+        r2.createCell(11).setCellValue(14175.0);
+        r2.createCell(23).setCellValue(17026.0);
+        r2.createCell(29).setCellValue(1924.0);
+        r2.createCell(30).setCellValue(15102.0);
+
+        // Employee 3: SANJAY PANDIT (Matches by ESI No. fallback)
+        Row r3 = wageSheet.createRow(12);
+        r3.createCell(0).setCellValue(3);
+        r3.createCell(1).setCellValue("SANJAY PANDIT");
+        r3.createCell(2).setCellValue("100333774416");
+        r3.createCell(3).setCellValue("4108663553");
+        r3.createCell(4).setCellValue("WORKMAN");
+        r3.createCell(5).setCellValue(20);
+        r3.createCell(10).setCellValue(525.0);
+        r3.createCell(11).setCellValue(11025.0);
+        r3.createCell(23).setCellValue(13227.0);
+        r3.createCell(29).setCellValue(1606.0);
+        r3.createCell(30).setCellValue(11621.0);
+
+        // 2. PAYSLIP Tab (should be ignored by parser)
+        Sheet payslipSheet = workbook.createSheet("PAYSLIP");
+        payslipSheet.createRow(0).createCell(0).setCellValue("PAY SLIP VIEW");
+
+        // 3. WHATS APP NO. Tab
+        Sheet contactSheet = workbook.createSheet("WHATS APP NO.");
+        Row cRow1 = contactSheet.createRow(0);
+        cRow1.createCell(0).setCellValue("Name & address of contractor : FRIENDS ENTERPRISE");
+
+        Row cRow5 = contactSheet.createRow(4);
+        cRow5.createCell(0).setCellValue("Sl. No.");
+        cRow5.createCell(1).setCellValue("Name of Workman");
+        cRow5.createCell(2).setCellValue("UAN No.");
+        cRow5.createCell(3).setCellValue("E.S.I No.");
+        cRow5.createCell(4).setCellValue("WHATSAPP No.");
+
+        // Contact 1: MANOJ YADAV -> Match on UAN
+        Row cr1 = contactSheet.createRow(5);
+        cr1.createCell(0).setCellValue(1);
+        cr1.createCell(1).setCellValue("MANOJ YADAV");
+        cr1.createCell(2).setCellValue("100222327291");
+        cr1.createCell(3).setCellValue("4108643725");
+        cr1.createCell(4).setCellValue("8967840595");
+
+        // Contact 2: LAKHI NARAYAN LOHAR -> NA
+        Row cr2 = contactSheet.createRow(6);
+        cr2.createCell(0).setCellValue(2);
+        cr2.createCell(1).setCellValue("LAKHI NARAYAN LOHAR");
+        cr2.createCell(2).setCellValue("100202820575");
+        cr2.createCell(3).setCellValue("4108661222");
+        cr2.createCell(4).setCellValue("NA");
+
+        // Contact 3: SANJAY PANDIT -> Blank UAN, matched via ESI No. 4108663553
+        Row cr3 = contactSheet.createRow(7);
+        cr3.createCell(0).setCellValue(3);
+        cr3.createCell(1).setCellValue("SANJAY PANDIT");
+        cr3.createCell(2).setCellValue("");
+        cr3.createCell(3).setCellValue("4108663553");
+        cr3.createCell(4).setCellValue("8617469384");
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        workbook.write(out);
+        workbook.close();
+
+        // Execute single workbook parse
+        ExcelParserService.ParsedWorkbookResult result =
+                excelParserService.parseSingleWorkbook(new ByteArrayInputStream(out.toByteArray()));
+
+        List<Employee> employees = result.employees();
+        assertEquals(3, employees.size(), "Should parse 3 employees from wage sheet");
+
+        // Validate Employee 1: MANOJ YADAV matched by UAN
+        Employee e1 = employees.get(0);
+        assertEquals("MANOJ YADAV", e1.getName());
+        assertEquals("100222327291", e1.getUan());
+        assertEquals("+918967840595", e1.getPhoneNumber());
+        assertTrue(e1.hasPhone());
+
+        // Validate Employee 2: LAKHI NARAYAN LOHAR has NA
+        Employee e2 = employees.get(1);
+        assertEquals("LAKHI NARAYAN LOHAR", e2.getName());
+        assertNull(e2.getPhoneNumber(), "Should have null phone because value was NA");
+        assertFalse(e2.hasPhone());
+        assertTrue(result.contactStore().isKnown(e2.getUan(), e2.getEsiNo(), e2.getName()),
+                "Should recognize employee exists in contact sheet despite NA phone");
+
+        // Validate Employee 3: SANJAY PANDIT matched by ESI No. fallback
+        Employee e3 = employees.get(2);
+        assertEquals("SANJAY PANDIT", e3.getName());
+        assertEquals("+918617469384", e3.getPhoneNumber(), "Should match phone using ESI fallback");
+        assertTrue(e3.hasPhone());
+    }
 }

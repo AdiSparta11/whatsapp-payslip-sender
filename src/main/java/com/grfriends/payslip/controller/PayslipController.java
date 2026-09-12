@@ -44,7 +44,7 @@ public class PayslipController {
 
     @PostMapping("/dispatch")
     public String dispatch(@RequestParam("wageSheet") MultipartFile wageSheetFile,
-                           @RequestParam("contactMaster") MultipartFile contactMasterFile,
+                           @RequestParam(value = "contactMaster", required = false) MultipartFile contactMasterFile,
                            @RequestParam(value = "customCaption", required = false) String customCaption,
                            HttpSession session,
                            Model model) {
@@ -55,24 +55,30 @@ public class PayslipController {
         Map<String, String> filenameMap = new LinkedHashMap<>();
 
         try {
-            if (wageSheetFile.isEmpty() || contactMasterFile.isEmpty()) {
-                model.addAttribute("errorMessage", "Both Wage Sheet Excel and Contact Master Excel files are required.");
+            if (wageSheetFile.isEmpty()) {
+                model.addAttribute("errorMessage", "Please select a Monthly Payroll Excel file (.xlsx / .xls).");
                 return "index";
             }
 
-            log.info("Starting processing. Wage file: {}, Contact file: {}",
-                    wageSheetFile.getOriginalFilename(), contactMasterFile.getOriginalFilename());
+            List<Employee> employees;
+            ExcelParserService.ContactStore contactStore;
 
-            // Step 1: Parse Wage Sheet
-            List<Employee> employees = excelParserService.parseWageSheet(wageSheetFile.getInputStream());
-            log.info("Parsed {} employees from wage sheet.", employees.size());
+            if (contactMasterFile != null && !contactMasterFile.isEmpty()) {
+                log.info("Processing separate files: Wage Sheet ({}) + Contact Master ({})",
+                        wageSheetFile.getOriginalFilename(), contactMasterFile.getOriginalFilename());
 
-            // Step 2: Parse Contact Master
-            Map<String, String> contacts = excelParserService.parseContactMaster(contactMasterFile.getInputStream());
-            log.info("Parsed {} contacts from contact master.", contacts.size());
+                employees = excelParserService.parseWageSheet(wageSheetFile.getInputStream());
+                contactStore = excelParserService.parseContactMasterStore(contactMasterFile.getInputStream());
+                excelParserService.matchEmployeesToContacts(employees, contactStore);
+            } else {
+                log.info("Processing single Master Excel workbook: {}", wageSheetFile.getOriginalFilename());
+                ExcelParserService.ParsedWorkbookResult result =
+                        excelParserService.parseSingleWorkbook(wageSheetFile.getInputStream());
+                employees = result.employees();
+                contactStore = result.contactStore();
+            }
 
-            // Step 3: Match Employees to Contacts
-            excelParserService.matchEmployeesToContacts(employees, contacts);
+            log.info("Parsed {} total employees. Contact store size: {}", employees.size(), contactStore.size());
 
             String templateMsg = (customCaption != null && !customCaption.isBlank())
                     ? customCaption
@@ -90,7 +96,7 @@ public class PayslipController {
                 if (emp.getYear() != null) detectedYear = emp.getYear();
 
                 if (!emp.hasPhone()) {
-                    if (contacts.containsKey(emp.getUan())) {
+                    if (contactStore.isKnown(emp.getUan(), emp.getEsiNo(), emp.getName())) {
                         unmatchedResults.add(DispatchResult.skippedNoPhone(idx, emp.getName(), emp.getUan()));
                     } else {
                         unmatchedResults.add(DispatchResult.skippedNoContact(idx, emp.getName(), emp.getUan()));
@@ -148,8 +154,8 @@ public class PayslipController {
             model.addAttribute("dispatchCompleted", true);
 
         } catch (Exception e) {
-            log.error("Error processing files: ", e);
-            model.addAttribute("errorMessage", "Error processing files: " + e.getMessage());
+            log.error("Error processing Excel file: ", e);
+            model.addAttribute("errorMessage", "Error processing Excel file: " + e.getMessage());
         }
 
         return "index";
@@ -229,4 +235,3 @@ public class PayslipController {
                 .body(pdfBytes);
     }
 }
-

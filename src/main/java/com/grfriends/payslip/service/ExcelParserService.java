@@ -13,13 +13,13 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Parses the GR Friends Enterprise wage sheet Excel and the contact master Excel.
+ * Parses the GR Friends Enterprise wage sheet Excel and WhatsApp contact numbers.
  *
- * The wage sheet has two relevant tabs:
- *   - "FRIENDS ENTERPRISE PAY SHEET" — the raw wage register with one row per employee
- *   - "PAYSILP" (sic) — a formatted payslip view (formulas pulling from the wage sheet)
- *
- * We read from the wage sheet tab directly (the raw data), not the PAYSILP tab.
+ * Supports both:
+ * 1. Single Master Workbook containing both:
+ *    - "FRIENDS ENTERPRISE PAY SHEET" (Form XVII wage register)
+ *    - "WHATS APP NO." (Contact matching tab with UAN, ESI, and WhatsApp Numbers)
+ * 2. Separate Wage Sheet & Contact Master files.
  */
 @Service
 public class ExcelParserService {
@@ -27,9 +27,14 @@ public class ExcelParserService {
     private static final Logger log = LoggerFactory.getLogger(ExcelParserService.class);
 
     // Keywords to detect the header row in the wage sheet
-    private static final List<String> HEADER_KEYWORDS = List.of(
+    private static final List<String> WAGE_HEADER_KEYWORDS = List.of(
             "uan", "name of workman", "workman", "esi no", "sl. no", "sl.no",
             "designation", "basic wages", "net payable", "days worked", "basic rate"
+    );
+
+    // Keywords to detect the header row in the WhatsApp contact sheet
+    private static final List<String> CONTACT_HEADER_KEYWORDS = List.of(
+            "whatsapp", "phone", "mobile", "uan no", "uan", "esi no", "e.s.i", "name of workman", "workman"
     );
 
     // Fixed POI 0-indexed column locations for Form XVII statutory wage sheet layout
@@ -69,20 +74,150 @@ public class ExcelParserService {
     );
 
     /**
+     * Contact Store holding mappings by UAN, ESI, and Workman Name.
+     */
+    public static class ContactStore {
+        private final Map<String, String> phoneByUan = new HashMap<>();
+        private final Map<String, String> phoneByEsi = new HashMap<>();
+        private final Map<String, String> phoneByName = new HashMap<>();
+        private final Set<String> knownUans = new HashSet<>();
+        private final Set<String> knownEsis = new HashSet<>();
+        private final Set<String> knownNames = new HashSet<>();
+
+        public void addContact(String uan, String esi, String name, String phone) {
+            if (uan != null && !uan.isBlank()) {
+                knownUans.add(uan);
+                if (phone != null && !phone.isBlank()) {
+                    phoneByUan.put(uan, phone);
+                }
+            }
+            if (esi != null && !esi.isBlank()) {
+                knownEsis.add(esi);
+                if (phone != null && !phone.isBlank()) {
+                    phoneByEsi.put(esi, phone);
+                }
+            }
+            if (name != null && !name.isBlank()) {
+                String norm = normalizeName(name);
+                knownNames.add(norm);
+                if (phone != null && !phone.isBlank()) {
+                    phoneByName.put(norm, phone);
+                }
+            }
+        }
+
+        public String findPhone(String uan, String esi, String name) {
+            if (uan != null && phoneByUan.containsKey(uan)) {
+                return phoneByUan.get(uan);
+            }
+            if (esi != null && phoneByEsi.containsKey(esi)) {
+                return phoneByEsi.get(esi);
+            }
+            if (name != null) {
+                String norm = normalizeName(name);
+                if (phoneByName.containsKey(norm)) {
+                    return phoneByName.get(norm);
+                }
+            }
+            return null;
+        }
+
+        public boolean isKnown(String uan, String esi, String name) {
+            if (uan != null && knownUans.contains(uan)) return true;
+            if (esi != null && knownEsis.contains(esi)) return true;
+            if (name != null && knownNames.contains(normalizeName(name))) return true;
+            return false;
+        }
+
+        public Map<String, String> toUanPhoneMap() {
+            return new HashMap<>(phoneByUan);
+        }
+
+        public int size() {
+            return Math.max(knownUans.size(), Math.max(knownEsis.size(), knownNames.size()));
+        }
+
+        private static String normalizeName(String raw) {
+            if (raw == null) return "";
+            return raw.replaceAll("[^a-zA-Z0-9]", "").toUpperCase();
+        }
+    }
+
+    public record ParsedWorkbookResult(List<Employee> employees, ContactStore contactStore) {}
+
+    /**
+     * Parse a single master workbook containing both Wage Sheet and WhatsApp Contact tabs.
+     */
+    public ParsedWorkbookResult parseSingleWorkbook(InputStream inputStream) throws Exception {
+        Workbook workbook = new XSSFWorkbook(inputStream);
+
+        Sheet wageSheet = findBestWageSheet(workbook);
+        if (wageSheet == null) {
+            workbook.close();
+            throw new IllegalArgumentException("Could not find a wage sheet tab in the uploaded Excel file. " +
+                    "Expected a sheet with column headers like 'UAN NO', 'NAME OF WORKMAN', 'BASIC WAGES', etc.");
+        }
+
+        log.info("Found wage sheet: '{}'", wageSheet.getSheetName());
+        List<Employee> employees = parseWageSheetFromSheet(wageSheet);
+
+        Sheet contactSheet = findBestContactSheet(workbook);
+        ContactStore contactStore = new ContactStore();
+        if (contactSheet != null) {
+            log.info("Found WhatsApp contact sheet: '{}'", contactSheet.getSheetName());
+            contactStore = parseContactSheet(contactSheet);
+            matchEmployeesToContacts(employees, contactStore);
+        } else {
+            log.warn("No separate WhatsApp / Contact tab detected in the workbook.");
+        }
+
+        workbook.close();
+        return new ParsedWorkbookResult(employees, contactStore);
+    }
+
+    /**
      * Parse the wage sheet Excel and return a list of Employee objects.
      */
     public List<Employee> parseWageSheet(InputStream inputStream) throws Exception {
         Workbook workbook = new XSSFWorkbook(inputStream);
-
-        // Find the best sheet — prefer one with "PAY SHEET" or "WAGE" in the name
         Sheet wageSheet = findBestWageSheet(workbook);
         if (wageSheet == null) {
+            workbook.close();
             throw new IllegalArgumentException("Could not find a wage sheet tab in the uploaded file. " +
                     "Expected a sheet with column headers like 'UAN NO', 'NAME OF WORKMAN', 'BASIC WAGES', etc.");
         }
 
-        log.info("Using sheet: '{}'", wageSheet.getSheetName());
+        List<Employee> employees = parseWageSheetFromSheet(wageSheet);
+        workbook.close();
+        return employees;
+    }
 
+    /**
+     * Parse the contact master Excel into ContactStore.
+     */
+    public ContactStore parseContactMasterStore(InputStream inputStream) throws Exception {
+        Workbook workbook = new XSSFWorkbook(inputStream);
+        Sheet sheet = findBestContactSheet(workbook);
+        if (sheet == null) {
+            sheet = workbook.getSheetAt(0);
+        }
+        ContactStore store = parseContactSheet(sheet);
+        workbook.close();
+        return store;
+    }
+
+    /**
+     * Parse the contact master Excel and return a map of UAN → phone number (legacy support).
+     */
+    public Map<String, String> parseContactMaster(InputStream inputStream) throws Exception {
+        ContactStore store = parseContactMasterStore(inputStream);
+        return store.toUanPhoneMap();
+    }
+
+    /**
+     * Parse employee rows from a POI Sheet object.
+     */
+    public List<Employee> parseWageSheetFromSheet(Sheet wageSheet) {
         // Detect month/year from sheet name or early rows
         String[] monthYear = detectMonthYear(wageSheet);
         String month = monthYear[0];
@@ -90,12 +225,12 @@ public class ExcelParserService {
         log.info("Detected period: {} {}", month, year);
 
         // Find the header row
-        int headerRowIdx = findHeaderRow(wageSheet);
-        log.info("Header row detected at index: {}", headerRowIdx);
+        int headerRowIdx = findWageHeaderRow(wageSheet);
+        log.info("Wage Header row detected at index: {}", headerRowIdx);
 
         Row headerRow = wageSheet.getRow(headerRowIdx);
         Map<String, Integer> columnMap = buildColumnMap(headerRow);
-        log.info("Column map: {}", columnMap);
+        log.info("Wage Column map: {}", columnMap);
 
         // Parse employee rows
         List<Employee> employees = new ArrayList<>();
@@ -106,7 +241,7 @@ public class ExcelParserService {
             if (row == null) continue;
 
             // Get the UAN — try fuzzy header lookup first, fallback to fixed index COL_UAN (col 2)
-            String uan = getCellString(row, columnMap, "uan no", "uan");
+            String uan = getCellString(row, columnMap, "uan no", "uan", "uan no.");
             if (uan == null) {
                 uan = getCellByIndex(row, COL_UAN);
             }
@@ -130,16 +265,16 @@ public class ExcelParserService {
             emp.setUan(uan);
             emp.setName(nameVal != null ? nameVal.trim() : "Unknown");
 
-            // Identity columns (row 9 fuzzy lookup, with fixed column fallback)
-            String esiVal = getCellString(row, columnMap, "e.s.i no", "esi no", "esic no", "esi");
+            // Identity columns (fuzzy lookup, with fixed column fallback)
+            String esiVal = getCellString(row, columnMap, "e.s.i no", "esi no", "esic no", "esi", "e.s.i no.");
             if (esiVal == null) esiVal = getCellByIndex(row, COL_ESI);
-            emp.setEsiNo(esiVal);
+            emp.setEsiNo(normalizeDigitsOnly(esiVal));
 
-            String desigVal = getCellString(row, columnMap, "designation");
+            String desigVal = getCellString(row, columnMap, "designation", "designation /nature of work done");
             if (desigVal == null) desigVal = getCellByIndex(row, COL_DESIGNATION);
             emp.setDesignation(desigVal);
 
-            String daysVal = getCellString(row, columnMap, "no. of days worked", "days worked", "days");
+            String daysVal = getCellString(row, columnMap, "no. of days worked", "no of days worked", "days worked", "days");
             if (daysVal == null) daysVal = getCellByIndex(row, COL_DAYS_WORKED);
             emp.setDaysWorked(daysVal);
 
@@ -178,50 +313,79 @@ public class ExcelParserService {
             employees.add(emp);
         }
 
-        workbook.close();
         log.info("Parsed {} employees from wage sheet", employees.size());
         return employees;
     }
 
     /**
-     * Parse the contact master Excel and return a map of UAN → phone number.
+     * Parse contacts from a POI Sheet object (e.g. WHATS APP NO. tab).
      */
-    public Map<String, String> parseContactMaster(InputStream inputStream) throws Exception {
-        Workbook workbook = new XSSFWorkbook(inputStream);
-        Sheet sheet = workbook.getSheetAt(0); // Contact master should have one sheet
+    public ContactStore parseContactSheet(Sheet sheet) {
+        ContactStore store = new ContactStore();
+        if (sheet == null) return store;
 
-        // Find header row
-        int headerRowIdx = findHeaderRow(sheet);
+        int headerRowIdx = findContactHeaderRow(sheet);
         Row headerRow = sheet.getRow(headerRowIdx);
         Map<String, Integer> columnMap = buildColumnMap(headerRow);
-
-        Map<String, String> contacts = new LinkedHashMap<>();
+        log.info("Contact Sheet '{}' detected header row at index {} with columns: {}",
+                sheet.getSheetName(), headerRowIdx, columnMap);
 
         for (int r = headerRowIdx + 1; r <= sheet.getLastRowNum(); r++) {
             Row row = sheet.getRow(r);
             if (row == null) continue;
 
-            String uan = getCellString(row, columnMap, "uan no", "uan", "uan no.");
+            String uan = getCellString(row, columnMap, "uan no.", "uan no", "uan");
+            if (uan == null) uan = getCellByIndex(row, 2); // Column C fallback
             uan = normalizeUan(uan);
-            if (uan == null || uan.isBlank()) continue;
 
-            String phone = getCellString(row, columnMap,
-                    "whatsapp phone number", "whatsapp number", "whatsapp",
+            String esi = getCellString(row, columnMap, "e.s.i no.", "e.s.i no", "esi no.", "esi no", "esi", "esic");
+            if (esi == null) esi = getCellByIndex(row, 3); // Column D fallback
+            esi = normalizeDigitsOnly(esi);
+
+            String name = getCellString(row, columnMap, "name of workman", "workman", "name");
+            if (name == null) name = getCellByIndex(row, 1); // Column B fallback
+
+            String rawPhone = getCellString(row, columnMap,
+                    "whatsapp no.", "whatsapp no", "whatsapp number", "whatsapp phone number", "whatsapp",
                     "phone number", "phone", "mobile", "contact", "number");
+            if (rawPhone == null) rawPhone = getCellByIndex(row, 4); // Column E fallback
 
-            phone = sanitizePhoneNumber(phone);
-            if (phone != null) {
-                contacts.put(uan, phone);
+            String phone = sanitizePhoneNumber(rawPhone);
+
+            // Skip empty rows without identity
+            if ((uan == null || uan.isBlank()) && (esi == null || esi.isBlank()) && (name == null || name.isBlank())) {
+                continue;
             }
+
+            // Skip headers/totals
+            if (name != null && (name.equalsIgnoreCase("NAME OF WORKMAN") || name.equalsIgnoreCase("TOTAL"))) {
+                continue;
+            }
+
+            store.addContact(uan, esi, name, phone);
         }
 
-        workbook.close();
-        log.info("Parsed {} contacts from contact master", contacts.size());
-        return contacts;
+        log.info("Parsed {} contacts from sheet '{}'", store.size(), sheet.getSheetName());
+        return store;
     }
 
     /**
-     * Match employees to contacts by UAN, setting the phone number on each matched employee.
+     * Match employees to contacts using ContactStore (UAN -> ESI No -> Name).
+     */
+    public void matchEmployeesToContacts(List<Employee> employees, ContactStore contactStore) {
+        int matched = 0;
+        for (Employee emp : employees) {
+            String phone = contactStore.findPhone(emp.getUan(), emp.getEsiNo(), emp.getName());
+            if (phone != null) {
+                emp.setPhoneNumber(phone);
+                matched++;
+            }
+        }
+        log.info("Matched {}/{} employees to contacts using UAN, ESI No, and Name fallback", matched, employees.size());
+    }
+
+    /**
+     * Legacy matcher with Map<String, String>.
      */
     public void matchEmployeesToContacts(List<Employee> employees, Map<String, String> contacts) {
         int matched = 0;
@@ -236,35 +400,36 @@ public class ExcelParserService {
     }
 
     // =================================================================
-    // Private helpers
+    // Sheet Finder Helpers
     // =================================================================
 
     /**
      * Find the best sheet in the workbook that looks like a wage register.
      */
-    private Sheet findBestWageSheet(Workbook workbook) {
+    public Sheet findBestWageSheet(Workbook workbook) {
         Sheet bestSheet = null;
         int bestScore = -1;
 
         for (int i = 0; i < workbook.getNumberOfSheets(); i++) {
             Sheet sheet = workbook.getSheetAt(i);
-            String sheetName = sheet.getSheetName().toUpperCase();
+            String sheetName = sheet.getSheetName().toUpperCase().replaceAll("\\s+", " ");
 
-            // Skip the PAYSILP formatted view — we want the raw data
+            // Skip PAYSILP formatted view and WhatsApp contact sheets
             if (sheetName.contains("PAYSILP") || sheetName.contains("PAYSLIP")) continue;
+            if (sheetName.contains("WHATS APP") || sheetName.contains("WHATSAPP") || sheetName.contains("CONTACT")) continue;
 
             int score = 0;
-            if (sheetName.contains("PAY SHEET") || sheetName.contains("PAYSHEET")) score += 10;
-            if (sheetName.contains("WAGE")) score += 8;
+            if (sheetName.contains("PAY SHEET") || sheetName.contains("PAYSHEET")) score += 15;
+            if (sheetName.contains("WAGE")) score += 10;
             if (sheetName.contains("ENTERPRISE") || sheetName.contains("FRIENDS")) score += 5;
 
-            // Also score by checking if the sheet has our expected header columns
-            int headerIdx = findHeaderRow(sheet);
+            // Score by checking header keywords
+            int headerIdx = findWageHeaderRow(sheet);
             if (headerIdx >= 0) {
                 Row headerRow = sheet.getRow(headerIdx);
                 if (headerRow != null) {
                     String headerText = rowToString(headerRow).toLowerCase();
-                    for (String kw : HEADER_KEYWORDS) {
+                    for (String kw : WAGE_HEADER_KEYWORDS) {
                         if (headerText.contains(kw)) score += 2;
                     }
                 }
@@ -276,7 +441,6 @@ public class ExcelParserService {
             }
         }
 
-        // Fallback: if no good sheet found, use the first non-PAYSILP sheet
         if (bestSheet == null && workbook.getNumberOfSheets() > 0) {
             bestSheet = workbook.getSheetAt(0);
         }
@@ -285,10 +449,58 @@ public class ExcelParserService {
     }
 
     /**
-     * Find the row index that contains the header (column names).
-     * Scans the first 25 rows for the one with the most keyword matches.
+     * Find the best sheet in the workbook that looks like a WhatsApp / Contact list.
      */
-    private int findHeaderRow(Sheet sheet) {
+    public Sheet findBestContactSheet(Workbook workbook) {
+        Sheet bestSheet = null;
+        int bestScore = -1;
+
+        for (int i = 0; i < workbook.getNumberOfSheets(); i++) {
+            Sheet sheet = workbook.getSheetAt(i);
+            String sheetName = sheet.getSheetName().toUpperCase().replaceAll("\\s+", " ");
+
+            // Skip payslip views and wage register sheets
+            if (sheetName.contains("PAYSILP") || sheetName.contains("PAYSLIP")) continue;
+            if (sheetName.contains("PAY SHEET") || sheetName.contains("PAYSHEET") || sheetName.contains("WAGE")) continue;
+
+            int score = 0;
+            if (sheetName.contains("WHATS APP") || sheetName.contains("WHATSAPP")) score += 25;
+            if (sheetName.contains("CONTACT")) score += 15;
+            if (sheetName.contains("PHONE") || sheetName.contains("MOBILE")) score += 10;
+
+            int headerIdx = findContactHeaderRow(sheet);
+            if (headerIdx >= 0) {
+                Row headerRow = sheet.getRow(headerIdx);
+                if (headerRow != null) {
+                    String headerText = rowToString(headerRow).toLowerCase();
+                    if (headerText.contains("whatsapp") || headerText.contains("phone") || headerText.contains("mobile")) {
+                        score += 10;
+                    }
+                }
+            }
+
+            if (score > bestScore && score > 0) {
+                bestScore = score;
+                bestSheet = sheet;
+            }
+        }
+
+        return bestSheet;
+    }
+
+    // =================================================================
+    // Header Row Detection Helpers
+    // =================================================================
+
+    private int findWageHeaderRow(Sheet sheet) {
+        return findHeaderRowByKeywords(sheet, WAGE_HEADER_KEYWORDS);
+    }
+
+    private int findContactHeaderRow(Sheet sheet) {
+        return findHeaderRowByKeywords(sheet, CONTACT_HEADER_KEYWORDS);
+    }
+
+    private int findHeaderRowByKeywords(Sheet sheet, List<String> keywords) {
         int bestRow = 0;
         int bestScore = 0;
 
@@ -298,7 +510,7 @@ public class ExcelParserService {
 
             String rowText = rowToString(row).toLowerCase();
             int score = 0;
-            for (String kw : HEADER_KEYWORDS) {
+            for (String kw : keywords) {
                 if (rowText.contains(kw)) score += 2;
             }
 
@@ -311,9 +523,10 @@ public class ExcelParserService {
         return bestRow;
     }
 
-    /**
-     * Build a map of lowercase column name → column index from the header row.
-     */
+    // =================================================================
+    // Cell & String Helpers
+    // =================================================================
+
     private Map<String, Integer> buildColumnMap(Row headerRow) {
         Map<String, Integer> map = new LinkedHashMap<>();
         if (headerRow == null) return map;
@@ -330,9 +543,6 @@ public class ExcelParserService {
         return map;
     }
 
-    /**
-     * Get a cell value by fixed column index.
-     */
     private String getCellByIndex(Row row, int colIdx) {
         if (row == null) return null;
         Cell cell = row.getCell(colIdx);
@@ -344,9 +554,6 @@ public class ExcelParserService {
         return val;
     }
 
-    /**
-     * Calculate summary of extra/other allowances.
-     */
     private String computeOtherAllowancesSummary(Employee emp) {
         double extra = 0.0;
         extra += parseDecimalSafe(emp.getOvertimeAmount());
@@ -355,9 +562,6 @@ public class ExcelParserService {
         return extra > 0 ? String.format("%.2f", extra) : null;
     }
 
-    /**
-     * Perform runtime sanity check on gross, deductions, and net payable.
-     */
     private void verifySalaryMathSanity(Employee emp) {
         double gross = parseDecimalSafe(emp.getGrossEarnings());
         double ded = parseDecimalSafe(emp.getTotalDeductions());
@@ -377,10 +581,6 @@ public class ExcelParserService {
         }
     }
 
-    /**
-     * Get a cell value as string from a row, trying multiple possible column name variants.
-     * Returns the first match found.
-     */
     private String getCellString(Row row, Map<String, Integer> columnMap, String... possibleNames) {
         for (String name : possibleNames) {
             Integer colIdx = columnMap.get(name.toLowerCase());
@@ -394,7 +594,7 @@ public class ExcelParserService {
                 }
             }
         }
-        // Also try partial matching — the Excel columns often have multi-line or extra text
+        // Partial matching fallback
         for (Map.Entry<String, Integer> entry : columnMap.entrySet()) {
             for (String name : possibleNames) {
                 if (entry.getKey().contains(name.toLowerCase())) {
@@ -411,9 +611,6 @@ public class ExcelParserService {
         return null;
     }
 
-    /**
-     * Convert any cell type to a string value.
-     */
     private String getCellValueAsString(Cell cell) {
         if (cell == null) return "";
 
@@ -421,7 +618,6 @@ public class ExcelParserService {
             case STRING -> cell.getStringCellValue();
             case NUMERIC -> {
                 double d = cell.getNumericCellValue();
-                // If it's a whole number, don't show decimal (e.g. UAN "100123456789" not "1.00123456789E11")
                 if (d == Math.floor(d) && !Double.isInfinite(d)) {
                     yield String.valueOf((long) d);
                 }
@@ -429,7 +625,6 @@ public class ExcelParserService {
             }
             case BOOLEAN -> String.valueOf(cell.getBooleanCellValue());
             case FORMULA -> {
-                // For formula cells, try to get the cached value
                 try {
                     yield String.valueOf(cell.getStringCellValue());
                 } catch (Exception e) {
@@ -448,34 +643,41 @@ public class ExcelParserService {
         };
     }
 
-    /**
-     * Normalize a UAN value — strip trailing .0, trim whitespace.
-     */
     private String normalizeUan(String uan) {
         if (uan == null || uan.isBlank()) return null;
         uan = uan.trim();
         if (uan.endsWith(".0")) {
             uan = uan.substring(0, uan.length() - 2);
         }
-        // Remove any non-digit characters (sometimes UANs have spaces or dashes)
         uan = uan.replaceAll("[^0-9]", "");
         return uan.isEmpty() ? null : uan;
     }
 
-    /**
-     * Sanitize a phone number to international format (+91XXXXXXXXXX).
-     */
+    private String normalizeDigitsOnly(String str) {
+        if (str == null || str.isBlank()) return null;
+        str = str.trim();
+        if (str.endsWith(".0")) {
+            str = str.substring(0, str.length() - 2);
+        }
+        String digits = str.replaceAll("[^0-9]", "");
+        return digits.isEmpty() ? null : digits;
+    }
+
     private String sanitizePhoneNumber(String rawPhone) {
         if (rawPhone == null || rawPhone.isBlank()) return null;
 
-        String phone = rawPhone.trim();
-        // Remove .0 suffix from numeric cells
+        String phone = rawPhone.trim().toUpperCase();
+        // Check common placeholders
+        if (phone.equals("NA") || phone.equals("N/A") || phone.equals("NIL") ||
+            phone.equals("NONE") || phone.equals("NULL") || phone.equals("-") || phone.equals("--")) {
+            return null;
+        }
+
         if (phone.endsWith(".0")) {
             phone = phone.substring(0, phone.length() - 2);
         }
 
-        boolean hasPlus = phone.startsWith("+");
-        // Keep only digits
+        boolean hasPlus = rawPhone.trim().startsWith("+");
         String digits = phone.replaceAll("\\D", "");
 
         if (digits.isEmpty()) return null;
@@ -483,19 +685,16 @@ public class ExcelParserService {
         if (hasPlus) {
             return "+" + digits;
         } else if (digits.length() == 10) {
-            return "+91" + digits;   // Indian 10-digit → prepend +91
+            return "+91" + digits;   // Indian 10-digit -> prepend +91
         } else if (digits.length() == 12 && digits.startsWith("91")) {
-            return "+" + digits;     // 91XXXXXXXXXX → +91XXXXXXXXXX
+            return "+" + digits;     // 91XXXXXXXXXX -> +91XXXXXXXXXX
         } else if (digits.length() > 10) {
             return "+" + digits;     // Already has country code
         }
 
-        return null; // Too short or invalid
+        return null;
     }
 
-    /**
-     * Concatenate all cell values in a row into a single string.
-     */
     private String rowToString(Row row) {
         StringBuilder sb = new StringBuilder();
         for (int c = 0; c < row.getLastCellNum(); c++) {
@@ -507,20 +706,14 @@ public class ExcelParserService {
         return sb.toString();
     }
 
-    /**
-     * Try to detect the month and year from the sheet name or early rows.
-     * e.g. "FRIENDS ENTERPRISE PAY SHEET JULY'26" → ["JULY", "2026"]
-     */
     private String[] detectMonthYear(Sheet sheet) {
         String month = "UNKNOWN";
         String year = String.valueOf(java.time.Year.now().getValue());
 
-        // Check sheet name first
         String sheetName = sheet.getSheetName().toUpperCase();
         String[] result = extractMonthYear(sheetName);
         if (result[0] != null) return result;
 
-        // Check first 10 rows for month/year references
         for (int r = 0; r <= Math.min(10, sheet.getLastRowNum()); r++) {
             Row row = sheet.getRow(r);
             if (row == null) continue;
@@ -532,14 +725,10 @@ public class ExcelParserService {
         return new String[]{month, year};
     }
 
-    /**
-     * Extract month and year from a text string.
-     */
     private String[] extractMonthYear(String text) {
         for (String m : MONTHS) {
             if (text.contains(m)) {
                 String detectedMonth = m;
-                // Try to find year — look for 'YY or 20YY
                 Pattern yearPattern = Pattern.compile("'?(\\d{2,4})");
                 Matcher matcher = yearPattern.matcher(text.substring(text.indexOf(m) + m.length()));
                 String detectedYear = String.valueOf(java.time.Year.now().getValue());

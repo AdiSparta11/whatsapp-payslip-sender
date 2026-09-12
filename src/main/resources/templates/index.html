@@ -25,27 +25,34 @@
 
     <!-- Step 1: Upload Card Form -->
     <div class="card">
-        <h2 class="card-title">📤 Step 1: Upload Excel Registers & Configure Message</h2>
+        <h2 class="card-title">📤 Step 1: Upload Monthly Payroll Workbook & Configure Message</h2>
         
         <form th:action="@{/dispatch}" method="post" enctype="multipart/form-data" id="dispatchForm" onsubmit="showLoading()">
-            <div class="upload-grid">
-                <!-- Wage Sheet Dropzone -->
-                <div class="file-dropzone" onclick="document.getElementById('wageSheet').click()">
+            <div class="upload-container" style="margin-bottom: 1.5rem;">
+                <!-- Master Excel Single Dropzone -->
+                <div class="file-dropzone" onclick="document.getElementById('wageSheet').click()" style="padding: 2.25rem 1.5rem;">
                     <div class="dropzone-icon">📊</div>
-                    <div class="dropzone-label">Wage Register Excel</div>
-                    <div class="dropzone-hint">Upload GR Friends Pay Sheet (.xlsx)</div>
+                    <div class="dropzone-label" style="font-size: 1.1rem;">Monthly Payroll Excel Workbook</div>
+                    <div class="dropzone-hint" style="font-size: 0.85rem; margin-top: 0.35rem;">
+                        Upload single <code>.xlsx</code> containing <strong>Wage Sheet</strong> & <strong>WHATS APP NO.</strong> tabs
+                    </div>
                     <input type="file" id="wageSheet" name="wageSheet" class="file-input" accept=".xlsx,.xls" required onchange="updateFileName(this, 'wageSheetName')">
                     <div id="wageSheetName" class="file-name-display"></div>
                 </div>
 
-                <!-- Contact Master Dropzone -->
-                <div class="file-dropzone" onclick="document.getElementById('contactMaster').click()">
-                    <div class="dropzone-icon">📇</div>
-                    <div class="dropzone-label">Contact Master Excel</div>
-                    <div class="dropzone-hint">Upload UAN to WhatsApp Numbers (.xlsx / .csv)</div>
-                    <input type="file" id="contactMaster" name="contactMaster" class="file-input" accept=".xlsx,.xls,.csv" required onchange="updateFileName(this, 'contactMasterName')">
-                    <div id="contactMasterName" class="file-name-display"></div>
-                </div>
+                <!-- Optional Separate Contact Master (Foldable) -->
+                <details style="margin-top: 1rem; font-size: 0.85rem; color: var(--text-secondary);">
+                    <summary style="cursor: pointer; padding: 0.4rem 0; font-weight: 500;">
+                        ➕ Advanced: Upload Separate Contact Master File (Optional)
+                    </summary>
+                    <div class="file-dropzone" onclick="document.getElementById('contactMaster').click()" style="margin-top: 0.75rem;">
+                        <div class="dropzone-icon" style="font-size: 1.5rem; margin-bottom: 0.35rem;">📇</div>
+                        <div class="dropzone-label">Contact Master Excel (Optional)</div>
+                        <div class="dropzone-hint">Upload separate UAN to WhatsApp Numbers (.xlsx / .csv) if not in the main workbook</div>
+                        <input type="file" id="contactMaster" name="contactMaster" class="file-input" accept=".xlsx,.xls,.csv" onchange="updateFileName(this, 'contactMasterName')">
+                        <div id="contactMasterName" class="file-name-display"></div>
+                    </div>
+                </details>
             </div>
 
             <div class="options-row">
@@ -98,7 +105,7 @@
                 ⚠️ Unmatched / Skipped Employees (<span th:text="${unmatchedCount}">0</span>)
             </h3>
             <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">
-                The following employees could not be matched with a valid WhatsApp phone number in the Contact Master file.
+                The following employees could not be matched with a valid WhatsApp phone number in the <code>WHATS APP NO.</code> tab.
             </p>
             <div class="results-table-wrapper">
                 <table class="results-table">
@@ -208,7 +215,7 @@
 <!-- Loading Overlay -->
 <div class="loading-overlay" id="loadingOverlay">
     <div class="spinner"></div>
-    <div class="loading-text">Parsing Excel Registers & Generating PDFs...</div>
+    <div class="loading-text">Parsing Excel Workbook & Generating PDFs...</div>
     <div class="loading-subtext">Building formatted PDF payslips for all employees. Please wait.</div>
 </div>
 
