@@ -17,6 +17,7 @@ import java.io.InputStream;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 
 /**
  * Generates an in-memory PDF payslip for an Employee using OpenPDF.
@@ -251,15 +252,35 @@ public class PdfGeneratorService {
             if (!p.isEmpty()) {
                 p.add(new Chunk(" / ", engFont));
             }
-            p.add(new Chunk(hindiText, hinFont != null ? hinFont : engFont));
+            p.add(new Chunk(fixPreBaseMatra(hindiText), hinFont != null ? hinFont : engFont));
         }
         if (bengaliText != null && !bengaliText.isEmpty()) {
             if (!p.isEmpty()) {
                 p.add(new Chunk(" / ", engFont));
             }
-            p.add(new Chunk(bengaliText, benFont != null ? benFont : engFont));
+            p.add(new Chunk(fixPreBaseMatra(bengaliText), benFont != null ? benFont : engFont));
         }
         return p;
+    }
+
+    // Devanagari and Bengali vowel sign I (ि / ি) are "pre-base" marks: stored in Unicode
+    // after their consonant, but must visually render before it. OpenPDF draws each
+    // character in raw storage order with no script-aware reordering, so without this fix
+    // words like "राशि" or "दिवस" render with the mark on the wrong side of the consonant.
+    // This swaps the mark to precede its consonant (and any conjunct cluster before it) in
+    // the string itself, so plain left-to-right character rendering shows it correctly -
+    // unlike full complex-script shaping, this doesn't change how any character's width is
+    // computed, so it can't cause the table/cell layout issues that approach did.
+    private static final Pattern DEVANAGARI_PREBASE_MATRA =
+            Pattern.compile("((?:[क-ह]्)*[क-ह])ि");
+    private static final Pattern BENGALI_PREBASE_MATRA =
+            Pattern.compile("((?:[ক-হ]্)*[ক-হ])ি");
+
+    private String fixPreBaseMatra(String text) {
+        if (text == null || text.isEmpty()) return text;
+        text = DEVANAGARI_PREBASE_MATRA.matcher(text).replaceAll("ि$1");
+        text = BENGALI_PREBASE_MATRA.matcher(text).replaceAll("ি$1");
+        return text;
     }
 
     /**
