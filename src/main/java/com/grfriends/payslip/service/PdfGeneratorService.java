@@ -59,30 +59,38 @@ public class PdfGeneratorService {
         BaseFont bfHindi = loadFontSafe("/fonts/NotoSansDevanagari-Regular.ttf", "src/main/resources/fonts/NotoSansDevanagari-Regular.ttf");
         Font hinNormalFont = (bfHindi != null) ? new Font(bfHindi, 8f, Font.NORMAL, new Color(30, 41, 59)) : engNormalFont;
         Font hinBoldFont = (bfHindi != null) ? new Font(bfHindi, 8.5f, Font.BOLD, new Color(15, 23, 42)) : engBoldFont;
-        Font hinTitleFont = (bfHindi != null) ? new Font(bfHindi, 12.5f, Font.BOLD, new Color(15, 23, 42)) : engTitleFont;
         Font hinSubTitleFont = (bfHindi != null) ? new Font(bfHindi, 8.5f, Font.NORMAL, new Color(71, 85, 105)) : engSubTitleFont;
         Font hinHeaderFont = (bfHindi != null) ? new Font(bfHindi, 9.5f, Font.BOLD, new Color(30, 41, 59)) : engHeaderFont;
         Font hinWhiteBoldFont = (bfHindi != null) ? new Font(bfHindi, 8.5f, Font.BOLD, Color.WHITE) : engWhiteBoldFont;
         Font hinFootFont = (bfHindi != null) ? new Font(bfHindi, 7.5f, Font.NORMAL, new Color(148, 163, 184)) : engFootFont;
+        Font hinSmallFont = (bfHindi != null) ? new Font(bfHindi, 7f, Font.NORMAL, new Color(100, 116, 139)) : engSubTitleFont;
 
         // 3. Bengali Fonts
         BaseFont bfBengali = loadFontSafe("/fonts/NotoSansBengali-Regular.ttf", "src/main/resources/fonts/NotoSansBengali-Regular.ttf");
         Font benNormalFont = (bfBengali != null) ? new Font(bfBengali, 8f, Font.NORMAL, new Color(30, 41, 59)) : engNormalFont;
         Font benBoldFont = (bfBengali != null) ? new Font(bfBengali, 8.5f, Font.BOLD, new Color(15, 23, 42)) : engBoldFont;
-        Font benTitleFont = (bfBengali != null) ? new Font(bfBengali, 12.5f, Font.BOLD, new Color(15, 23, 42)) : engTitleFont;
         Font benSubTitleFont = (bfBengali != null) ? new Font(bfBengali, 8.5f, Font.NORMAL, new Color(71, 85, 105)) : engSubTitleFont;
         Font benHeaderFont = (bfBengali != null) ? new Font(bfBengali, 9.5f, Font.BOLD, new Color(30, 41, 59)) : engHeaderFont;
         Font benWhiteBoldFont = (bfBengali != null) ? new Font(bfBengali, 8.5f, Font.BOLD, Color.WHITE) : engWhiteBoldFont;
         Font benFootFont = (bfBengali != null) ? new Font(bfBengali, 7.5f, Font.NORMAL, new Color(148, 163, 184)) : engFootFont;
+        Font benSmallFont = (bfBengali != null) ? new Font(bfBengali, 7f, Font.NORMAL, new Color(100, 116, 139)) : engSubTitleFont;
 
-        // --- Header Section (Trilingual Title) ---
+        // --- Header Section (English title, translations as a smaller line below) ---
         String contractorRaw = defaultVal(emp.getContractorName(), "FRIENDS ENTERPRISE");
-        Paragraph title = new Paragraph();
+        Paragraph title = new Paragraph("M/S. " + contractorRaw, engTitleFont);
         title.setAlignment(Element.ALIGN_CENTER);
-        title.add(createTrilingualPhrase("M/S. " + contractorRaw,
-                getContractorHindi(contractorRaw), getContractorBengali(contractorRaw),
-                engTitleFont, hinTitleFont, benTitleFont));
         document.add(title);
+
+        Phrase titleTranslation = createTrilingualPhrase(null,
+                getContractorHindi(contractorRaw), getContractorBengali(contractorRaw),
+                engSubTitleFont, hinSubTitleFont, benSubTitleFont);
+        if (!titleTranslation.isEmpty()) {
+            Paragraph titleTranslationPara = new Paragraph();
+            titleTranslationPara.setAlignment(Element.ALIGN_CENTER);
+            titleTranslationPara.setSpacingAfter(2f);
+            titleTranslationPara.add(titleTranslation);
+            document.add(titleTranslationPara);
+        }
 
         Paragraph site = new Paragraph();
         site.setAlignment(Element.ALIGN_CENTER);
@@ -110,21 +118,21 @@ public class PdfGeneratorService {
         infoTable.setWidths(new float[]{1, 1});
 
         addInfoCell(infoTable, "Pay Slip No", "पे स्लिप नं.", "পে স্লিপ নং", String.valueOf(emp.getSlNo()),
-                engBoldFont, hinBoldFont, benBoldFont, engNormalFont);
+                engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
         addInfoCell(infoTable, "Employee Name", "कर्मचारी का नाम", "শ্রমিকের নাম", emp.getName(),
-                engBoldFont, hinBoldFont, benBoldFont, engNormalFont);
+                engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
         addInfoCell(infoTable, "UAN No", "यू.ए.एन. नं.", "ইউ.এ.এন নং", emp.getUan(),
-                engBoldFont, hinBoldFont, benBoldFont, engNormalFont);
+                engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
         addInfoCell(infoTable, "ESI No", "ई.एस.आई. नं.", "ই.এস.আই নং", defaultVal(emp.getEsiNo(), "-"),
-                engBoldFont, hinBoldFont, benBoldFont, engNormalFont);
+                engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
         addInfoCell(infoTable, "Designation", "पद", "পদ", defaultVal(emp.getDesignation(), "WORKMAN"),
-                engBoldFont, hinBoldFont, benBoldFont, engNormalFont);
+                engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
         addInfoCell(infoTable, "Days Worked", "कार्य दिवस", "কাজের দিন", defaultVal(emp.getDaysWorked(), "0"),
-                engBoldFont, hinBoldFont, benBoldFont, engNormalFont);
+                engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
         addInfoCell(infoTable, "Basic Rate", "दैनिक मूल दर", "দৈনিক মজুরি হার", "Rs. " + formatAmount(defaultVal(emp.getBasicRate(), "0.00")),
-                engBoldFont, hinBoldFont, benBoldFont, engNormalFont);
+                engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
         addInfoCell(infoTable, "Gross Earnings", "संपूर्ण वेतन", "মোট উপার্জন", "Rs. " + formatAmount(defaultVal(emp.getGrossEarnings(), "0.00")),
-                engBoldFont, hinBoldFont, benBoldFont, engNormalFont);
+                engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
 
         document.add(infoTable);
 
@@ -251,16 +259,30 @@ public class PdfGeneratorService {
         return p;
     }
 
+    /**
+     * Builds an info-grid cell as three stacked lines: the English label (bold),
+     * a smaller/muted Hindi + Bengali translation line, then the value (bold),
+     * instead of running label/translations/value together in one flowing line.
+     */
     private void addInfoCell(PdfPTable table, String engLabel, String hinLabel, String benLabel, String value,
                              Font engLabelFont, Font hinLabelFont, Font benLabelFont, Font valFont) {
-        Phrase phrase = createTrilingualPhrase(engLabel, hinLabel, benLabel, engLabelFont, hinLabelFont, benLabelFont);
-        phrase.add(new Chunk(": ", engLabelFont));
-        phrase.add(new Chunk(value != null ? value : "", valFont));
-
-        PdfPCell cell = new PdfPCell(phrase);
+        PdfPCell cell = new PdfPCell();
         cell.setBackgroundColor(new Color(248, 250, 252));
         cell.setBorderColor(new Color(203, 213, 225));
-        cell.setPadding(5);
+        cell.setPadding(6);
+
+        Paragraph labelPara = new Paragraph(engLabel, engLabelFont);
+        labelPara.setSpacingAfter(1f);
+        cell.addElement(labelPara);
+
+        Phrase translationPhrase = createTrilingualPhrase(null, hinLabel, benLabel, engLabelFont, hinLabelFont, benLabelFont);
+        if (!translationPhrase.isEmpty()) {
+            Paragraph translationPara = new Paragraph(translationPhrase);
+            translationPara.setSpacingAfter(3f);
+            cell.addElement(translationPara);
+        }
+
+        cell.addElement(new Paragraph(value != null ? value : "", valFont));
         table.addCell(cell);
     }
 
