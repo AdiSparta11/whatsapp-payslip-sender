@@ -3,7 +3,6 @@ package com.grfriends.payslip.service;
 import com.grfriends.payslip.model.Employee;
 import com.lowagie.text.*;
 import com.lowagie.text.pdf.BaseFont;
-import com.lowagie.text.pdf.LayoutProcessor;
 import com.lowagie.text.pdf.PdfPCell;
 import com.lowagie.text.pdf.PdfPTable;
 import com.lowagie.text.pdf.PdfWriter;
@@ -13,7 +12,6 @@ import org.springframework.stereotype.Service;
 
 import java.awt.Color;
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
@@ -28,51 +26,6 @@ import java.util.List;
 public class PdfGeneratorService {
 
     private static final Logger log = LoggerFactory.getLogger(PdfGeneratorService.class);
-
-    private static final String[] SHAPING_PROBE_FONTS = {
-            "/fonts/NotoSansDevanagari-Regular.ttf",
-            "/fonts/NotoSansBengali-Regular.ttf"
-    };
-
-    public PdfGeneratorService() {
-        enableComplexScriptShapingIfSupported();
-    }
-
-    /**
-     * Enables OpenPDF's LayoutProcessor so Devanagari/Bengali text gets proper
-     * complex-script shaping (pre-base matra reordering, e.g. Hindi "दविस" -> "दिवस",
-     * Bengali split vowel signs like "ো" in "মোট"). Without it, OpenPDF maps each
-     * Unicode codepoint straight to a glyph with no reordering, which is correct for
-     * English/Latin text but garbles Indic scripts.
-     * <p>
-     * This relies on the JVM's own AWT font engine (java.awt.Font#layoutGlyphVector),
-     * which needs native TrueType parsing support (FreeType) that isn't guaranteed on
-     * every minimal JRE image. Rather than assume it works, this probes the exact
-     * operation (parsing our embedded fonts via java.awt.Font.createFont) once at
-     * startup and only enables shaping if the probe succeeds — if it fails for any
-     * reason, shaping is simply left disabled and the app renders exactly as it did
-     * before, rather than risking a broken font load for every generated payslip.
-     */
-    private static void enableComplexScriptShapingIfSupported() {
-        if (LayoutProcessor.isEnabled()) {
-            return;
-        }
-        try {
-            for (String resource : SHAPING_PROBE_FONTS) {
-                try (InputStream is = PdfGeneratorService.class.getResourceAsStream(resource)) {
-                    if (is == null) {
-                        throw new IOException("Font resource not found on classpath: " + resource);
-                    }
-                    java.awt.Font.createFont(java.awt.Font.TRUETYPE_FONT, is);
-                }
-            }
-            LayoutProcessor.enable();
-            log.info("OpenPDF LayoutProcessor enabled: Devanagari/Bengali complex-script shaping is supported in this environment.");
-        } catch (Throwable t) {
-            log.warn("Complex-script font shaping (AWT layoutGlyphVector) is not available in this environment; " +
-                    "Hindi/Bengali text will render without matra reordering. Cause: {}", String.valueOf(t));
-        }
-    }
 
     public byte[] generatePayslipPdf(Employee emp) throws Exception {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -458,12 +411,7 @@ public class PdfGeneratorService {
         try (InputStream is = getClass().getResourceAsStream(classpathResource)) {
             if (is != null) {
                 byte[] bytes = is.readAllBytes();
-                // Pass the full classpath-relative name (not just the basename) so that,
-                // when LayoutProcessor is enabled, it can independently re-resolve this
-                // exact resource via BaseFont.getResourceStream() to build its AWT companion
-                // font for glyph shaping. A bare filename wouldn't resolve and would throw,
-                // taking down font loading entirely.
-                String fontName = classpathResource.startsWith("/") ? classpathResource.substring(1) : classpathResource;
+                String fontName = classpathResource.substring(classpathResource.lastIndexOf('/') + 1);
                 return BaseFont.createFont(fontName, BaseFont.IDENTITY_H, BaseFont.EMBEDDED, true, bytes, null);
             }
         } catch (Exception e) {
