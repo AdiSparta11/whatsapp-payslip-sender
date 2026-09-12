@@ -105,7 +105,8 @@
                 ⚠️ Unmatched / Skipped Employees (<span th:text="${unmatchedCount}">0</span>)
             </h3>
             <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">
-                The following employees could not be matched with a valid WhatsApp phone number in the <code>WHATS APP NO.</code> tab.
+                These employees could not be matched with a valid WhatsApp phone number in the <code>WHATS APP NO.</code> tab.
+                Their PDF payslip is still generated below — download it and send it through another channel (email, SMS, in person, etc.).
             </p>
             <div class="results-table-wrapper">
                 <table class="results-table">
@@ -115,6 +116,7 @@
                         <th>Employee Name</th>
                         <th>UAN Number</th>
                         <th>Skipped Reason</th>
+                        <th style="text-align: center; width: 90px;">PDF</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -124,6 +126,12 @@
                         <td th:text="${r.uan}">100123456789</td>
                         <td>
                             <span class="badge status-skipped" th:text="${r.errorMessage}">No contact entry</span>
+                        </td>
+                        <td style="text-align: center;">
+                            <a th:if="${r.pdfFilename != null}" th:href="@{/download-pdf/{uan}(uan=${r.uan})}" target="_blank" class="btn-pdf" title="Download individual PDF">
+                                📥 PDF
+                            </a>
+                            <span th:unless="${r.pdfFilename != null}" style="color: var(--text-secondary); font-size: 0.75rem;">—</span>
                         </td>
                     </tr>
                     </tbody>

@@ -95,29 +95,36 @@ public class PayslipController {
                 if (emp.getMonth() != null) detectedMonth = emp.getMonth();
                 if (emp.getYear() != null) detectedYear = emp.getYear();
 
+                // Generate a PDF for every employee, matched or not, so unmatched/skipped
+                // employees (missing or invalid WhatsApp number) can still be downloaded
+                // individually and sent through some other channel.
+                String filename = null;
+                String pdfError = null;
+                try {
+                    byte[] pdfBytes = pdfGeneratorService.generatePayslipPdf(emp);
+                    String sanitizedName = emp.getName().replaceAll("[^a-zA-Z0-9]", "_").replaceAll("_+", "_");
+                    filename = String.format("Payslip_%s_%s_%s.pdf", sanitizedName, emp.getMonth(), emp.getYear());
+                    pdfMap.put(emp.getUan(), pdfBytes);
+                    filenameMap.put(emp.getUan(), filename);
+                } catch (Exception e) {
+                    log.error("Failed to generate PDF for employee UAN {}: {}", emp.getUan(), e.getMessage());
+                    pdfError = e.getMessage();
+                }
+
                 if (!emp.hasPhone()) {
                     if (contactStore.isKnown(emp.getUan(), emp.getEsiNo(), emp.getName())) {
-                        unmatchedResults.add(DispatchResult.skippedNoPhone(idx, emp.getName(), emp.getUan()));
+                        unmatchedResults.add(DispatchResult.skippedNoPhone(idx, emp.getName(), emp.getUan(), filename));
                     } else {
-                        unmatchedResults.add(DispatchResult.skippedNoContact(idx, emp.getName(), emp.getUan()));
+                        unmatchedResults.add(DispatchResult.skippedNoContact(idx, emp.getName(), emp.getUan(), filename));
                     }
                     continue;
                 }
 
-                // Generate PDF
-                byte[] pdfBytes;
-                try {
-                    pdfBytes = pdfGeneratorService.generatePayslipPdf(emp);
-                } catch (Exception e) {
-                    log.error("Failed to generate PDF for employee UAN {}: {}", emp.getUan(), e.getMessage());
+                if (filename == null) {
                     unmatchedResults.add(DispatchResult.failed(idx, emp.getName(), emp.getUan(), emp.getPhoneNumber(),
-                            "PDF Generation Error: " + e.getMessage()));
+                            "PDF Generation Error: " + pdfError));
                     continue;
                 }
-
-                String sanitizedName = emp.getName().replaceAll("[^a-zA-Z0-9]", "_").replaceAll("_+", "_");
-                String filename = String.format("Payslip_%s_%s_%s.pdf",
-                        sanitizedName, emp.getMonth(), emp.getYear());
 
                 String cleanPhone = emp.getPhoneNumber().replaceAll("\\D", "");
 
@@ -134,8 +141,6 @@ public class PayslipController {
                         emp.getPhoneNumber(), cleanPhone, filename, waLink, emp.getMonth(), emp.getYear());
 
                 matchedResults.add(res);
-                pdfMap.put(emp.getUan(), pdfBytes);
-                filenameMap.put(emp.getUan(), filename);
             }
 
             // Save batch to session for ZIP & single PDF downloads

@@ -49,14 +49,14 @@ public class DispatchResult {
         return new DispatchResult(idx, name, uan, phone, cleanPhone, pdfFilename, waLink, month, year, Status.SENT, null, true);
     }
 
-    public static DispatchResult skippedNoContact(int idx, String name, String uan) {
-        return new DispatchResult(idx, name, uan, null, null, null, null, null, null, Status.SKIPPED_NO_CONTACT,
-                "No matching contact entry in Contact Master for this UAN", false);
+    public static DispatchResult skippedNoContact(int idx, String name, String uan, String pdfFilename) {
+        return new DispatchResult(idx, name, uan, null, null, pdfFilename, null, null, null, Status.SKIPPED_NO_CONTACT,
+                "No matching contact entry in Contact Master for this UAN", pdfFilename != null);
     }
 
-    public static DispatchResult skippedNoPhone(int idx, String name, String uan) {
-        return new DispatchResult(idx, name, uan, null, null, null, null, null, null, Status.SKIPPED_NO_PHONE,
-                "Contact entry found but phone number is missing or invalid", false);
+    public static DispatchResult skippedNoPhone(int idx, String name, String uan, String pdfFilename) {
+        return new DispatchResult(idx, name, uan, null, null, pdfFilename, null, null, null, Status.SKIPPED_NO_PHONE,
+                "Contact entry found but phone number is missing or invalid", pdfFilename != null);
     }
 
     public static DispatchResult failed(int idx, String name, String uan, String phone, String error) {
