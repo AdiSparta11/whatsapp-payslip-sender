@@ -225,6 +225,10 @@ public class ExcelParserService {
         String year = monthYear[1];
         log.info("Detected period: {} {}", month, year);
 
+        // Detect contractor name from the "Name & address of contractor :" row
+        String contractorName = detectContractorName(wageSheet);
+        log.info("Detected contractor name: {}", contractorName);
+
         // Find the header row
         int headerRowIdx = findWageHeaderRow(wageSheet);
         log.info("Wage Header row detected at index: {}", headerRowIdx);
@@ -307,6 +311,7 @@ public class ExcelParserService {
 
             emp.setMonth(month);
             emp.setYear(year);
+            emp.setContractorName(contractorName);
 
             // Runtime sanity check: Gross - Total Deductions = Net Payable
             verifySalaryMathSanity(emp);
@@ -852,6 +857,33 @@ public class ExcelParserService {
             }
         }
         return sb.toString();
+    }
+
+    /**
+     * Detects the contractor name from the "Name & address of contractor :" label
+     * cell near the top of the Form XVII wage sheet, so the generated PDF header
+     * reflects whichever contractor's workbook was uploaded (e.g. "FRIENDS ENTERPRISE",
+     * "B.P. TRANSPORT") instead of a fixed name.
+     */
+    private String detectContractorName(Sheet sheet) {
+        for (int r = 0; r <= Math.min(10, sheet.getLastRowNum()); r++) {
+            Row row = sheet.getRow(r);
+            if (row == null) continue;
+            for (int c = 0; c < row.getLastCellNum(); c++) {
+                String cellText = getCellByIndex(row, c);
+                if (cellText == null) continue;
+                String normalized = cellText.toLowerCase();
+                if (normalized.contains("contractor")) {
+                    for (int c2 = c + 1; c2 < row.getLastCellNum(); c2++) {
+                        String val = getCellByIndex(row, c2);
+                        if (val != null && !val.isBlank()) {
+                            return val.trim();
+                        }
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     private String[] detectMonthYear(Sheet sheet) {

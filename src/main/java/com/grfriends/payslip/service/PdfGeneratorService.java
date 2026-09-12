@@ -64,9 +64,11 @@ public class PdfGeneratorService {
         Font benFootFont = (bfBengali != null) ? new Font(bfBengali, 7.5f, Font.NORMAL, new Color(148, 163, 184)) : engFootFont;
 
         // --- Header Section (Trilingual Title) ---
+        String contractorRaw = defaultVal(emp.getContractorName(), "FRIENDS ENTERPRISE");
         Paragraph title = new Paragraph();
         title.setAlignment(Element.ALIGN_CENTER);
-        title.add(createTrilingualPhrase("M/S. FRIENDS ENTERPRISE", "मैसर्स फ्रेंड्स एंटरप्राइज", "মেসার্স ফ্রেন্ডস এন্টারপ্রাইজ",
+        title.add(createTrilingualPhrase("M/S. " + contractorRaw,
+                getContractorHindi(contractorRaw), getContractorBengali(contractorRaw),
                 engTitleFont, hinTitleFont, benTitleFont));
         document.add(title);
 
@@ -329,6 +331,29 @@ public class PdfGeneratorService {
         } catch (NumberFormatException e) {
             return val;
         }
+    }
+
+    /**
+     * Known contractor name transliterations. Falls back to null (English-only display
+     * via createTrilingualPhrase) for contractors not in this list, since arbitrary
+     * company names can't be reliably auto-transliterated into Hindi/Bengali script.
+     */
+    private String getContractorHindi(String contractorName) {
+        if (contractorName == null) return "मैसर्स फ्रेंड्स एंटरप्राइज";
+        return switch (contractorName.trim().toUpperCase()) {
+            case "FRIENDS ENTERPRISE" -> "मैसर्स फ्रेंड्स एंटरप्राइज";
+            case "B.P. TRANSPORT", "BP TRANSPORT", "B.P TRANSPORT" -> "मैसर्स बी.पी. ट्रांसपोर्ट";
+            default -> null;
+        };
+    }
+
+    private String getContractorBengali(String contractorName) {
+        if (contractorName == null) return "মেসার্স ফ্রেন্ডস এন্টারপ্রাইজ";
+        return switch (contractorName.trim().toUpperCase()) {
+            case "FRIENDS ENTERPRISE" -> "মেসার্স ফ্রেন্ডস এন্টারপ্রাইজ";
+            case "B.P. TRANSPORT", "BP TRANSPORT", "B.P TRANSPORT" -> "মেসার্স বি.পি. ট্রান্সপোর্ট";
+            default -> null;
+        };
     }
 
     private String getMonthHindi(String month) {

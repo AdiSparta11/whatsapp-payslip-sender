@@ -38,6 +38,7 @@ public class Employee {
     private String phoneNumber;  // filled after matching with contact master
     private String month;        // e.g. "JULY"
     private String year;         // e.g. "2026"
+    private String contractorName; // e.g. "FRIENDS ENTERPRISE", "B.P. TRANSPORT"
 
     // --- Getters and Setters ---
 
@@ -136,6 +137,9 @@ public class Employee {
 
     public String getYear() { return year; }
     public void setYear(String year) { this.year = year; }
+
+    public String getContractorName() { return contractorName; }
+    public void setContractorName(String contractorName) { this.contractorName = contractorName; }
 
     /**
      * Whether this employee has a phone number matched from the contact master.
