@@ -38,7 +38,7 @@ A Spring Boot web application that parses statutory Form XVII Excel wage registe
 - Supported 1-file master Excel workbook containing both the Form XVII wage sheet and WHATS APP NO tabs.
 - Added dual-key matching on UAN No and ESI No with NA/invalid phone handling.
 - Embedded NotoSansDevanagari-Regular.ttf alongside NotoSansBengali-Regular.ttf for Trilingual (English / Hindi / Bengali) PDF generation.
-- Corrected Hindi and Bengali terminology and spellings (e.g. मूल वेतन / মূল মজুরি, मकान किराया भत्ता / বাড়ি ভাড়া ভাতা, महंगाई भत्ता / মহার্ঘ ভাতা).
+- Corrected Hindi and Bengali terminology and spellings (e.g. मूल वेतन / মূল মজুরি, मकान किराया भत्ता / বাড়ি ভাড়া ভাতা, महंगाई भत्ता / মহার্ঘ ভাতা, Gross earnings: संपूर्ण वेतन, Net payable: कुल राशि).
 - Committed & pushed all changes to `main` branch on GitHub triggering auto-deploy on Render.com.
 
 ---

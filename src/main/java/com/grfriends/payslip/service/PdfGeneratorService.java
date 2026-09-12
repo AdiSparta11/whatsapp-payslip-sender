@@ -103,7 +103,7 @@ public class PdfGeneratorService {
                 engBoldFont, hinBoldFont, benBoldFont, engNormalFont);
         addInfoCell(infoTable, "Basic Rate", "दैनिक मूल दर", "দৈনিক মজুরি হার", "Rs. " + defaultVal(emp.getBasicRate(), "0.00"),
                 engBoldFont, hinBoldFont, benBoldFont, engNormalFont);
-        addInfoCell(infoTable, "Gross Salary", "सकल वेतन", "মোট বেতন", "Rs. " + defaultVal(emp.getGrossEarnings(), "0.00"),
+        addInfoCell(infoTable, "Gross Earnings", "संपूर्ण वेतन", "মোট উপার্জন", "Rs. " + defaultVal(emp.getGrossEarnings(), "0.00"),
                 engBoldFont, hinBoldFont, benBoldFont, engNormalFont);
 
         document.add(infoTable);
@@ -168,12 +168,12 @@ public class PdfGeneratorService {
 
         // Totals Row
         addTotalRow(payTable,
-                "GROSS EARNINGS", "सकल वेतन", "মোট উপার্জন", defaultVal(emp.getGrossEarnings(), "0.00"),
+                "GROSS EARNINGS", "संपूर्ण वेतन", "মোট উপার্জন", defaultVal(emp.getGrossEarnings(), "0.00"),
                 "TOTAL DEDUCTIONS", "कुल कटौती", "মোট কর্তন", defaultVal(emp.getTotalDeductions(), "0.00"),
                 engBoldFont, hinBoldFont, benBoldFont, engBoldFont);
 
         // Net Payable Row
-        Phrase netLabelPhrase = createTrilingualPhrase("NET PAYABLE", "शुद्ध देय राशि", "নিট প্রদেয় টাকা",
+        Phrase netLabelPhrase = createTrilingualPhrase("NET PAYABLE", "कुल राशि", "নিট প্রদেয় টাকা",
                 engBoldFont, hinBoldFont, benBoldFont);
         PdfPCell netLabelCell = new PdfPCell(netLabelPhrase);
         netLabelCell.setBackgroundColor(new Color(226, 232, 240));
