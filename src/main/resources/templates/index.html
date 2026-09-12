@@ -164,13 +164,12 @@
                         <th style="width: 40px; text-align: center;">
                             <input type="checkbox" id="masterSelect" onchange="toggleSelectAll(this.checked)" style="accent-color: var(--primary-blue); cursor: pointer;">
                         </th>
-                        <th>#</th>
+                        <th style="width: 35px;">#</th>
                         <th>Employee Name</th>
-                        <th>UAN Number</th>
                         <th>WhatsApp Phone</th>
-                        <th>PDF Filename</th>
-                        <th>Actions</th>
-                        <th style="text-align: center;">Sent?</th>
+                        <th>UAN Number</th>
+                        <th style="text-align: center; min-width: 190px;">Dispatch Actions</th>
+                        <th style="width: 60px; text-align: center;">Sent?</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -185,14 +184,14 @@
                             <input type="checkbox" class="row-select" th:data-uan="${r.uan}" style="accent-color: var(--primary-blue); cursor: pointer;">
                         </td>
                         <td th:text="${r.index}">1</td>
-                        <td class="col-name" style="font-weight: 600;" th:text="${r.employeeName}">RAJU DAS</td>
-                        <td th:text="${r.uan}">100123456789</td>
-                        <td th:text="${r.phone}">+918768136662</td>
-                        <td>
-                            <code class="filename-code" th:text="${r.pdfFilename}">Payslip_RAJU_DAS_JULY_2026.pdf</code>
+                        <td class="col-name">
+                            <div style="font-weight: 600; font-size: 0.95rem;" th:text="${r.employeeName}">RAJU DAS</div>
+                            <div style="font-size: 0.75rem; color: var(--accent-cyan); font-family: monospace; margin-top: 2px;" th:text="${r.pdfFilename}">Payslip_RAJU_DAS_JULY_2026.pdf</div>
                         </td>
-                        <td>
-                            <div class="action-group">
+                        <td style="font-weight: 600; color: #34d399; font-family: monospace; font-size: 0.9rem;" th:text="${r.phone}">+918768136662</td>
+                        <td style="color: var(--text-secondary); font-family: monospace; font-size: 0.85rem;" th:text="${r.uan}">100123456789</td>
+                        <td style="text-align: center;">
+                            <div class="action-group" style="justify-content: center;">
                                 <a th:href="${r.waLink}" target="_blank" class="btn-wa" title="Open pre-filled WhatsApp Web chat">
                                     📲 Open Chat
                                 </a>
