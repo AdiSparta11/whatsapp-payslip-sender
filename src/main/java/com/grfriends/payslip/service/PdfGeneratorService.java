@@ -75,12 +75,17 @@ public class PdfGeneratorService {
                 engSubTitleFont, hinSubTitleFont, benSubTitleFont));
         document.add(site);
 
-        String monthYear = (emp.getMonth() != null ? emp.getMonth() : "JULY") + " " +
-                (emp.getYear() != null ? emp.getYear() : "2026");
+        String rawMonth = (emp.getMonth() != null && !emp.getMonth().isBlank()) ? emp.getMonth() : "AUGUST";
+        String rawYear = (emp.getYear() != null && !emp.getYear().isBlank()) ? emp.getYear() : "2026";
+
+        String engPeriod = "PAY SLIP FOR " + rawMonth + " " + rawYear;
+        String hinPeriod = "वेतन पर्ची - " + getMonthHindi(rawMonth) + " " + rawYear;
+        String benPeriod = "পে স্লিপ - " + getMonthBengali(rawMonth) + " " + toBengaliDigits(rawYear);
+
         Paragraph period = new Paragraph();
         period.setAlignment(Element.ALIGN_CENTER);
         period.setSpacingAfter(10);
-        period.add(createTrilingualPhrase("PAY SLIP FOR " + monthYear, "वेतन पर्ची - " + monthYear, "পে স্লিপ - " + monthYear,
+        period.add(createTrilingualPhrase(engPeriod, hinPeriod, benPeriod,
                 engHeaderFont, hinHeaderFont, benHeaderFont));
         document.add(period);
 
@@ -97,7 +102,7 @@ public class PdfGeneratorService {
                 engBoldFont, hinBoldFont, benBoldFont, engNormalFont);
         addInfoCell(infoTable, "ESI No", "ई.एस.आई. नं.", "ই.এস.আই নং", defaultVal(emp.getEsiNo(), "-"),
                 engBoldFont, hinBoldFont, benBoldFont, engNormalFont);
-        addInfoCell(infoTable, "Designation", "पद", "পদবী", defaultVal(emp.getDesignation(), "WORKMAN"),
+        addInfoCell(infoTable, "Designation", "पद", "পদ", defaultVal(emp.getDesignation(), "WORKMAN"),
                 engBoldFont, hinBoldFont, benBoldFont, engNormalFont);
         addInfoCell(infoTable, "Days Worked", "कार्य दिवस", "কাজের দিন", defaultVal(emp.getDaysWorked(), "0"),
                 engBoldFont, hinBoldFont, benBoldFont, engNormalFont);
@@ -118,17 +123,16 @@ public class PdfGeneratorService {
         payTable.setWidths(new float[]{3.2f, 1.2f, 3.2f, 1.2f});
 
         // Header Row
-        addHeaderCell(payTable, "Earnings", "उपार্জন", "উপার্জনের বিবরণ", engWhiteBoldFont, hinWhiteBoldFont, benWhiteBoldFont);
+        addHeaderCell(payTable, "Earnings Description", "उपार्जन", "উপার্জনের বিবরণ", engWhiteBoldFont, hinWhiteBoldFont, benWhiteBoldFont);
         addHeaderCell(payTable, "Amount (Rs.)", "राशि", "টাকা", engWhiteBoldFont, hinWhiteBoldFont, benWhiteBoldFont);
-        addHeaderCell(payTable, "Deductions", "कटौती", "কর্তনের বিবরণ", engWhiteBoldFont, hinWhiteBoldFont, benWhiteBoldFont);
+        addHeaderCell(payTable, "Deductions Description", "कटौती", "কর্তনের বিবরণ", engWhiteBoldFont, hinWhiteBoldFont, benWhiteBoldFont);
         addHeaderCell(payTable, "Amount (Rs.)", "राशि", "টাকা", engWhiteBoldFont, hinWhiteBoldFont, benWhiteBoldFont);
 
         // Build Itemized Earnings List: [engLabel, hinLabel, benLabel, amount]
         List<String[]> earnings = new ArrayList<>();
-        // Accurate spellings per User's reference screenshots:
-        addIfPresentTrilingual(earnings, "Basic Wages", "मूल वेतन", "মূল মজুরি", emp.getBasicAmount());
-        addIfPresentTrilingual(earnings, "Dearness Allowance (DA)", "महंगाई भत्ता", "মহার্ঘ ভাতা (ডি.এ)", emp.getDa());
-        addIfPresentTrilingual(earnings, "House Rent Allowance (HRA)", "मकान किराया भत्ता", "বাড়ি ভাড়া ভাতা", emp.getHra());
+        addIfPresentTrilingual(earnings, "Basic Wages", "मूल वेतन", "मूल মজুরি", emp.getBasicAmount());
+        addIfPresentTrilingual(earnings, "Dearness Allowance (DA)", "महंगाई भत्ता", "মহার্ঘ ভাতা", emp.getDa());
+        addIfPresentTrilingual(earnings, "House Rent Allowance (HRA)", "मकान किराया भत्ता", "বাড়িভাড়া ভাতা", emp.getHra());
         addIfPresentTrilingual(earnings, "Washing Allowance", "धुलाई भत्ता", "ধোলাই ভাতা", emp.getWashingAllowance());
         addIfPresentTrilingual(earnings, "Fuel Allowance", "ईंधन भत्ता", "জ্বালানি ভাতা", emp.getFuelAllowance());
         addIfPresentTrilingual(earnings, "Attendance Allowance", "उपस्थिति भत्ता", "উপস্থিতি ভাতা", emp.getAttendanceAllowance());
@@ -140,18 +144,18 @@ public class PdfGeneratorService {
         addIfPresentTrilingual(earnings, "Other Allowances", "अन्य भत्ते", "অন্যান্য ভাতা", emp.getOtherAllowances());
 
         if (earnings.isEmpty()) {
-            addIfPresentTrilingual(earnings, "Basic Wages", "मूल वेतन", "মূল মজুরি", "0.00");
+            addIfPresentTrilingual(earnings, "Basic Wages", "मूल वेतन", "मूल মজুরি", "0.00");
         }
 
         // Build Itemized Deductions List: [engLabel, hinLabel, benLabel, amount]
         List<String[]> deductions = new ArrayList<>();
-        addIfPresentTrilingual(deductions, "E.P.F. Contribution", "भविष्य निधि (PF)", "প্রভিডেন্ট ফান্ড (PF)", emp.getEpfDeduction());
-        addIfPresentTrilingual(deductions, "E.S.I.C. Contribution", "ई.एस.आई.सी (ESI)", "ই.এস.আই.সি (ESI)", emp.getEsiDeduction());
+        addIfPresentTrilingual(deductions, "E.P.F. Contribution", "भविष्य निधि (ई.पी.एफ.)", "প্রভিডেন্ট ফান্ড (ই.পি.এফ.)", emp.getEpfDeduction());
+        addIfPresentTrilingual(deductions, "E.S.I.C. Contribution", "ई.एस.आई.सी. अंशदान", "ই.এস.আই.সি. (ই.এস.আই.)", emp.getEsiDeduction());
         addIfPresentTrilingual(deductions, "Advance Deduction", "अग्रिम कटौती", "অগ্রিম কর্তন", emp.getAdvanceDeduction());
         addIfPresentTrilingual(deductions, "Other Deductions", "अन्य कटौती", "অন্যান্য কর্তন", emp.getOtherDeductions());
 
         if (deductions.isEmpty()) {
-            addIfPresentTrilingual(deductions, "E.P.F. Contribution", "भविष्य निधि (PF)", "প্রভিডেন্ট ফান্ড (PF)", "0.00");
+            addIfPresentTrilingual(deductions, "E.P.F. Contribution", "भविष्य निधि (ई.पी.एफ.)", "প্রভিডেন্ট ফান্ড (ই.পি.এফ.)", "0.00");
         }
 
         // Render Balanced Table Rows
@@ -173,7 +177,7 @@ public class PdfGeneratorService {
                 engBoldFont, hinBoldFont, benBoldFont, engBoldFont);
 
         // Net Payable Row
-        Phrase netLabelPhrase = createTrilingualPhrase("NET PAYABLE", "कुल राशि", "নিট প্রদেয় টাকা",
+        Phrase netLabelPhrase = createTrilingualPhrase("NET PAYABLE", "कुल राशि", "মোট প্রদেয় টাকা",
                 engBoldFont, hinBoldFont, benBoldFont);
         PdfPCell netLabelCell = new PdfPCell(netLabelPhrase);
         netLabelCell.setBackgroundColor(new Color(226, 232, 240));
@@ -200,7 +204,7 @@ public class PdfGeneratorService {
         Paragraph footer = new Paragraph();
         footer.setAlignment(Element.ALIGN_CENTER);
         footer.setSpacingBefore(16);
-        footer.add(createTrilingualPhrase("This is an official computer-generated payslip", "यह एक आधिकारिक कंप्यूटर जनित वेतन पर्ची है", "এটি একটি কম্পিউটার চালিত সরকারি পে স্লিপ",
+        footer.add(createTrilingualPhrase("This is an official computer-generated payslip", "यह एक आधिकारिक कंप्यूटर जनित वेतन पर्ची है।", "এটি একটি কম্পিউটার দ্বারা তৈরি পে স্লিপ",
                 engFootFont, hinFootFont, benFootFont));
         document.add(footer);
 
@@ -310,6 +314,57 @@ public class PdfGeneratorService {
 
     private String defaultVal(String val, String fallback) {
         return (val != null && !val.isBlank()) ? val : fallback;
+    }
+
+    private String getMonthHindi(String month) {
+        if (month == null) return "";
+        return switch (month.toUpperCase().trim()) {
+            case "JANUARY" -> "जनवरी";
+            case "FEBRUARY" -> "फ़रवरी";
+            case "MARCH" -> "मार्च";
+            case "APRIL" -> "अप्रैल";
+            case "MAY" -> "मई";
+            case "JUNE" -> "जून";
+            case "JULY" -> "जुलाई";
+            case "AUGUST" -> "अगस्त";
+            case "SEPTEMBER" -> "सितंबर";
+            case "OCTOBER" -> "अक्टूबर";
+            case "NOVEMBER" -> "नवंबर";
+            case "DECEMBER" -> "दिसंबर";
+            default -> month;
+        };
+    }
+
+    private String getMonthBengali(String month) {
+        if (month == null) return "";
+        return switch (month.toUpperCase().trim()) {
+            case "JANUARY" -> "জানুয়ারি";
+            case "FEBRUARY" -> "ফেব্রুয়ারি";
+            case "MARCH" -> "মার্চ";
+            case "APRIL" -> "এপ্রিল";
+            case "MAY" -> "মে";
+            case "JUNE" -> "জুন";
+            case "JULY" -> "জুলাই";
+            case "AUGUST" -> "আগস্ট";
+            case "SEPTEMBER" -> "সেপ্টেম্বর";
+            case "OCTOBER" -> "অক্টোবর";
+            case "NOVEMBER" -> "নভেম্বর";
+            case "DECEMBER" -> "ডিসেম্বর";
+            default -> month;
+        };
+    }
+
+    private String toBengaliDigits(String numberStr) {
+        if (numberStr == null) return "";
+        StringBuilder sb = new StringBuilder();
+        for (char c : numberStr.toCharArray()) {
+            if (c >= '0' && c <= '9') {
+                sb.append((char) ('\u09E6' + (c - '0'))); // ০ to ৯
+            } else {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
     }
 
     private BaseFont loadFontSafe(String classpathResource, String fallbackFilePath) {
