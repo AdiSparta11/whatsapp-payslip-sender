@@ -130,9 +130,9 @@ public class PdfGeneratorService {
 
         // Build Itemized Earnings List: [engLabel, hinLabel, benLabel, amount]
         List<String[]> earnings = new ArrayList<>();
-        addIfPresentTrilingual(earnings, "Basic Wages", "मूल वेतन", "मूल মজুরি", emp.getBasicAmount());
+        addIfPresentTrilingual(earnings, "Basic Wages", "मूल वेतन", "মূল মজুরি", emp.getBasicAmount());
         addIfPresentTrilingual(earnings, "Dearness Allowance (DA)", "महंगाई भत्ता", "মহার্ঘ ভাতা", emp.getDa());
-        addIfPresentTrilingual(earnings, "House Rent Allowance (HRA)", "मकान किराया भत्ता", "বাড়িভাড়া ভাতা", emp.getHra());
+        addIfPresentTrilingual(earnings, "House Rent Allowance (HRA)", "मकान किराया भत्ता", "বাড়ি ভাড়া ভাতা", emp.getHra());
         addIfPresentTrilingual(earnings, "Washing Allowance", "धुलाई भत्ता", "ধোলাই ভাতা", emp.getWashingAllowance());
         addIfPresentTrilingual(earnings, "Fuel Allowance", "ईंधन भत्ता", "জ্বালানি ভাতা", emp.getFuelAllowance());
         addIfPresentTrilingual(earnings, "Attendance Allowance", "उपस्थिति भत्ता", "উপস্থিতি ভাতা", emp.getAttendanceAllowance());
@@ -144,7 +144,7 @@ public class PdfGeneratorService {
         addIfPresentTrilingual(earnings, "Other Allowances", "अन्य भत्ते", "অন্যান্য ভাতা", emp.getOtherAllowances());
 
         if (earnings.isEmpty()) {
-            addIfPresentTrilingual(earnings, "Basic Wages", "मूल वेतन", "मूल মজুরি", "0.00");
+            addIfPresentTrilingual(earnings, "Basic Wages", "मूल वेतन", "মূল মজুরি", "0.00");
         }
 
         // Build Itemized Deductions List: [engLabel, hinLabel, benLabel, amount]
