@@ -12,13 +12,14 @@ import org.springframework.stereotype.Service;
 
 import java.awt.Color;
 import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Generates an in-memory PDF payslip for an Employee using OpenPDF.
- * Creates a bilingual (English + Bengali / ইংরেজি ও বাংলা) payslip where standard Helvetica font
- * renders numbers and values, while NotoSansBengali renders Bengali text.
+ * Creates a trilingual (English / Hindi / Bengali — ইংরেজি / हिंदी / বাংলা) payslip
+ * with accurate statutory terminology.
  */
 @Service
 public class PdfGeneratorService {
@@ -27,148 +28,162 @@ public class PdfGeneratorService {
 
     public byte[] generatePayslipPdf(Employee emp) throws Exception {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        Document document = new Document(PageSize.A4, 36, 36, 36, 36);
+        Document document = new Document(PageSize.A4, 32, 32, 32, 32);
         PdfWriter.getInstance(document, out);
 
         document.open();
 
         // 1. English Fonts (Helvetica for reliable ASCII/Latin numbers and values)
-        Font engTitleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 14, new Color(15, 23, 42));
-        Font engSubTitleFont = FontFactory.getFont(FontFactory.HELVETICA, 9, new Color(71, 85, 105));
-        Font engHeaderFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 10, new Color(30, 41, 59));
-        Font engBoldFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 9, new Color(15, 23, 42));
-        Font engNormalFont = FontFactory.getFont(FontFactory.HELVETICA, 9, new Color(30, 41, 59));
-        Font engWhiteBoldFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 9, Color.WHITE);
-        Font engFootFont = FontFactory.getFont(FontFactory.HELVETICA, 8, new Color(148, 163, 184));
+        Font engTitleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 13, new Color(15, 23, 42));
+        Font engSubTitleFont = FontFactory.getFont(FontFactory.HELVETICA, 8.5f, new Color(71, 85, 105));
+        Font engHeaderFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 9.5f, new Color(30, 41, 59));
+        Font engBoldFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 8.5f, new Color(15, 23, 42));
+        Font engNormalFont = FontFactory.getFont(FontFactory.HELVETICA, 8f, new Color(30, 41, 59));
+        Font engWhiteBoldFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 8.5f, Color.WHITE);
+        Font engFootFont = FontFactory.getFont(FontFactory.HELVETICA, 7.5f, new Color(148, 163, 184));
 
-        // 2. Bengali Fonts (NotoSansBengali for Bengali script)
-        Font benNormalFont = null;
-        Font benBoldFont = null;
-        Font benTitleFont = null;
-        Font benSubTitleFont = null;
-        Font benHeaderFont = null;
-        Font benWhiteBoldFont = null;
-        Font benFootFont = null;
+        // 2. Hindi (Devanagari) Fonts
+        BaseFont bfHindi = loadFontSafe("/fonts/NotoSansDevanagari-Regular.ttf", "src/main/resources/fonts/NotoSansDevanagari-Regular.ttf");
+        Font hinNormalFont = (bfHindi != null) ? new Font(bfHindi, 8f, Font.NORMAL, new Color(30, 41, 59)) : engNormalFont;
+        Font hinBoldFont = (bfHindi != null) ? new Font(bfHindi, 8.5f, Font.BOLD, new Color(15, 23, 42)) : engBoldFont;
+        Font hinTitleFont = (bfHindi != null) ? new Font(bfHindi, 12.5f, Font.BOLD, new Color(15, 23, 42)) : engTitleFont;
+        Font hinSubTitleFont = (bfHindi != null) ? new Font(bfHindi, 8.5f, Font.NORMAL, new Color(71, 85, 105)) : engSubTitleFont;
+        Font hinHeaderFont = (bfHindi != null) ? new Font(bfHindi, 9.5f, Font.BOLD, new Color(30, 41, 59)) : engHeaderFont;
+        Font hinWhiteBoldFont = (bfHindi != null) ? new Font(bfHindi, 8.5f, Font.BOLD, Color.WHITE) : engWhiteBoldFont;
+        Font hinFootFont = (bfHindi != null) ? new Font(bfHindi, 7.5f, Font.NORMAL, new Color(148, 163, 184)) : engFootFont;
 
-        try {
-            BaseFont bfBengali = BaseFont.createFont("fonts/NotoSansBengali-Regular.ttf", BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
-            benNormalFont = new Font(bfBengali, 9, Font.NORMAL, new Color(30, 41, 59));
-            benBoldFont = new Font(bfBengali, 9, Font.BOLD, new Color(15, 23, 42));
-            benTitleFont = new Font(bfBengali, 14, Font.BOLD, new Color(15, 23, 42));
-            benSubTitleFont = new Font(bfBengali, 9, Font.NORMAL, new Color(71, 85, 105));
-            benHeaderFont = new Font(bfBengali, 10, Font.BOLD, new Color(30, 41, 59));
-            benWhiteBoldFont = new Font(bfBengali, 9, Font.BOLD, Color.WHITE);
-            benFootFont = new Font(bfBengali, 8, Font.NORMAL, new Color(148, 163, 184));
-        } catch (Exception e) {
-            log.warn("Could not load NotoSansBengali font, falling back to English Helvetica: {}", e.getMessage());
-        }
+        // 3. Bengali Fonts
+        BaseFont bfBengali = loadFontSafe("/fonts/NotoSansBengali-Regular.ttf", "src/main/resources/fonts/NotoSansBengali-Regular.ttf");
+        Font benNormalFont = (bfBengali != null) ? new Font(bfBengali, 8f, Font.NORMAL, new Color(30, 41, 59)) : engNormalFont;
+        Font benBoldFont = (bfBengali != null) ? new Font(bfBengali, 8.5f, Font.BOLD, new Color(15, 23, 42)) : engBoldFont;
+        Font benTitleFont = (bfBengali != null) ? new Font(bfBengali, 12.5f, Font.BOLD, new Color(15, 23, 42)) : engTitleFont;
+        Font benSubTitleFont = (bfBengali != null) ? new Font(bfBengali, 8.5f, Font.NORMAL, new Color(71, 85, 105)) : engSubTitleFont;
+        Font benHeaderFont = (bfBengali != null) ? new Font(bfBengali, 9.5f, Font.BOLD, new Color(30, 41, 59)) : engHeaderFont;
+        Font benWhiteBoldFont = (bfBengali != null) ? new Font(bfBengali, 8.5f, Font.BOLD, Color.WHITE) : engWhiteBoldFont;
+        Font benFootFont = (bfBengali != null) ? new Font(bfBengali, 7.5f, Font.NORMAL, new Color(148, 163, 184)) : engFootFont;
 
-        // --- Header Section (Bilingual Title) ---
+        // --- Header Section (Trilingual Title) ---
         Paragraph title = new Paragraph();
         title.setAlignment(Element.ALIGN_CENTER);
-        title.add(createBilingualPhrase("M/S. FRIENDS ENTERPRISE", "ফ্রেন্ডস এন্টারপ্রাইজ", engTitleFont, benTitleFont));
+        title.add(createTrilingualPhrase("M/S. FRIENDS ENTERPRISE", "मैसर्स फ्रेंड्स एंटरप्राइज", "মেসার্স ফ্রেন্ডস এন্টারপ্রাইজ",
+                engTitleFont, hinTitleFont, benTitleFont));
         document.add(title);
 
         Paragraph site = new Paragraph();
         site.setAlignment(Element.ALIGN_CENTER);
-        site.add(createBilingualPhrase("GRAPHITE INDIA LIMITED, DURGAPUR", "গ্রাফাইট ইন্ডিয়া লিমিটেড, দুর্গাপুর", engSubTitleFont, benSubTitleFont));
+        site.add(createTrilingualPhrase("GRAPHITE INDIA LIMITED, DURGAPUR", "ग्रेफाइट इंडिया लिमिटेड, दुर्गापुर", "গ্রাফাইট ইন্ডিয়া লিমিটেড, দুর্গাপুর",
+                engSubTitleFont, hinSubTitleFont, benSubTitleFont));
         document.add(site);
 
         String monthYear = (emp.getMonth() != null ? emp.getMonth() : "JULY") + " " +
                 (emp.getYear() != null ? emp.getYear() : "2026");
         Paragraph period = new Paragraph();
         period.setAlignment(Element.ALIGN_CENTER);
-        period.setSpacingAfter(12);
-        period.add(createBilingualPhrase("PAY SLIP FOR " + monthYear, "পে স্লিপ - " + monthYear, engHeaderFont, benHeaderFont));
+        period.setSpacingAfter(10);
+        period.add(createTrilingualPhrase("PAY SLIP FOR " + monthYear, "वेतन पर्ची - " + monthYear, "পে স্লিপ - " + monthYear,
+                engHeaderFont, hinHeaderFont, benHeaderFont));
         document.add(period);
 
-        // --- Employee Info Table (Bilingual Labels + English Values) ---
+        // --- Employee Info Table (Trilingual Labels + English Values) ---
         PdfPTable infoTable = new PdfPTable(2);
         infoTable.setWidthPercentage(100);
         infoTable.setWidths(new float[]{1, 1});
 
-        addInfoCell(infoTable, "Pay Slip No", "পে স্লিপ নং", String.valueOf(emp.getSlNo()), engBoldFont, benBoldFont, engNormalFont);
-        addInfoCell(infoTable, "Employee Name", "শ্রমিকের নাম", emp.getName(), engBoldFont, benBoldFont, engNormalFont);
-        addInfoCell(infoTable, "UAN No", "ইউ.এ.এন নং", emp.getUan(), engBoldFont, benBoldFont, engNormalFont);
-        addInfoCell(infoTable, "ESI No", "ই.এস.আই নং", defaultVal(emp.getEsiNo(), "-"), engBoldFont, benBoldFont, engNormalFont);
-        addInfoCell(infoTable, "Days Worked", "কাজের দিন", defaultVal(emp.getDaysWorked(), "0"), engBoldFont, benBoldFont, engNormalFont);
-        addInfoCell(infoTable, "Basic Rate", "দৈনিক মজুরি হার", "Rs. " + defaultVal(emp.getBasicRate(), "0.00"), engBoldFont, benBoldFont, engNormalFont);
+        addInfoCell(infoTable, "Pay Slip No", "पे स्लिप नं.", "পে স্লিপ নং", String.valueOf(emp.getSlNo()),
+                engBoldFont, hinBoldFont, benBoldFont, engNormalFont);
+        addInfoCell(infoTable, "Employee Name", "कर्मचारी का नाम", "শ্রমিকের নাম", emp.getName(),
+                engBoldFont, hinBoldFont, benBoldFont, engNormalFont);
+        addInfoCell(infoTable, "UAN No", "यू.ए.एन. नं.", "ইউ.এ.এন নং", emp.getUan(),
+                engBoldFont, hinBoldFont, benBoldFont, engNormalFont);
+        addInfoCell(infoTable, "ESI No", "ई.एस.आई. नं.", "ই.এস.আই নং", defaultVal(emp.getEsiNo(), "-"),
+                engBoldFont, hinBoldFont, benBoldFont, engNormalFont);
+        addInfoCell(infoTable, "Designation", "पद", "পদবী", defaultVal(emp.getDesignation(), "WORKMAN"),
+                engBoldFont, hinBoldFont, benBoldFont, engNormalFont);
+        addInfoCell(infoTable, "Days Worked", "कार्य दिवस", "কাজের দিন", defaultVal(emp.getDaysWorked(), "0"),
+                engBoldFont, hinBoldFont, benBoldFont, engNormalFont);
+        addInfoCell(infoTable, "Basic Rate", "दैनिक मूल दर", "দৈনিক মজুরি হার", "Rs. " + defaultVal(emp.getBasicRate(), "0.00"),
+                engBoldFont, hinBoldFont, benBoldFont, engNormalFont);
+        addInfoCell(infoTable, "Gross Salary", "सकल वेतन", "মোট বেতন", "Rs. " + defaultVal(emp.getGrossEarnings(), "0.00"),
+                engBoldFont, hinBoldFont, benBoldFont, engNormalFont);
 
         document.add(infoTable);
 
         Paragraph spacer = new Paragraph(" ");
-        spacer.setSpacingAfter(8);
+        spacer.setSpacingAfter(6);
         document.add(spacer);
 
         // --- Earnings & Deductions Table ---
         PdfPTable payTable = new PdfPTable(4);
         payTable.setWidthPercentage(100);
-        payTable.setWidths(new float[]{2.5f, 1.2f, 2.5f, 1.2f});
+        payTable.setWidths(new float[]{3.2f, 1.2f, 3.2f, 1.2f});
 
         // Header Row
-        addHeaderCell(payTable, "Earnings Description", "উপার্জনের বিবরণ", engWhiteBoldFont, benWhiteBoldFont);
-        addHeaderCell(payTable, "Amount (Rs.)", "টাকা", engWhiteBoldFont, benWhiteBoldFont);
-        addHeaderCell(payTable, "Deductions Description", "কর্তনের বিবরণ", engWhiteBoldFont, benWhiteBoldFont);
-        addHeaderCell(payTable, "Amount (Rs.)", "টাকা", engWhiteBoldFont, benWhiteBoldFont);
+        addHeaderCell(payTable, "Earnings", "उपार্জন", "উপার্জনের বিবরণ", engWhiteBoldFont, hinWhiteBoldFont, benWhiteBoldFont);
+        addHeaderCell(payTable, "Amount (Rs.)", "राशि", "টাকা", engWhiteBoldFont, hinWhiteBoldFont, benWhiteBoldFont);
+        addHeaderCell(payTable, "Deductions", "कटौती", "কর্তনের বিবরণ", engWhiteBoldFont, hinWhiteBoldFont, benWhiteBoldFont);
+        addHeaderCell(payTable, "Amount (Rs.)", "राशि", "টাকা", engWhiteBoldFont, hinWhiteBoldFont, benWhiteBoldFont);
 
-        // Build Itemized Earnings List: [engLabel, benLabel, amount]
+        // Build Itemized Earnings List: [engLabel, hinLabel, benLabel, amount]
         List<String[]> earnings = new ArrayList<>();
-        addIfPresentBilingual(earnings, "Basic Wages", "মূল বেতন", emp.getBasicAmount());
-        addIfPresentBilingual(earnings, "Dearness Allowance (DA)", "মহার্ঘ ভাতা", emp.getDa());
-        addIfPresentBilingual(earnings, "House Rent Allowance (HRA)", "বাড়ি ভাড়া ভাতা", emp.getHra());
-        addIfPresentBilingual(earnings, "Washing Allowance", "ধোলাই ভাতা", emp.getWashingAllowance());
-        addIfPresentBilingual(earnings, "Fuel Allowance", "জ্বালানি ভাতা", emp.getFuelAllowance());
-        addIfPresentBilingual(earnings, "Attendance Allowance", "উপস্থিতি ভাতা", emp.getAttendanceAllowance());
-        addIfPresentBilingual(earnings, "Food Allowance", "খাদ্য ভাতা", emp.getFoodAllowance());
-        addIfPresentBilingual(earnings, "Gratuity", "গ্র্যাচুইটি", emp.getGratuity());
-        addIfPresentBilingual(earnings, "Overtime Amount", "ওভারটাইম মজুরি", emp.getOvertimeAmount());
-        addIfPresentBilingual(earnings, "Performance Incentive", "পারফরম্যান্স ইনসেনটিভ", emp.getPerformanceIncentive());
-        addIfPresentBilingual(earnings, "Other Allowances", "অন্যান্য ভাতা", emp.getOtherAllowances());
+        // Accurate spellings per User's reference screenshots:
+        addIfPresentTrilingual(earnings, "Basic Wages", "मूल वेतन", "মূল মজুরি", emp.getBasicAmount());
+        addIfPresentTrilingual(earnings, "Dearness Allowance (DA)", "महंगाई भत्ता", "মহার্ঘ ভাতা (ডি.এ)", emp.getDa());
+        addIfPresentTrilingual(earnings, "House Rent Allowance (HRA)", "मकान किराया भत्ता", "বাড়ি ভাড়া ভাতা", emp.getHra());
+        addIfPresentTrilingual(earnings, "Washing Allowance", "धुलाई भत्ता", "ধোলাই ভাতা", emp.getWashingAllowance());
+        addIfPresentTrilingual(earnings, "Fuel Allowance", "ईंधन भत्ता", "জ্বালানি ভাতা", emp.getFuelAllowance());
+        addIfPresentTrilingual(earnings, "Attendance Allowance", "उपस्थिति भत्ता", "উপস্থিতি ভাতা", emp.getAttendanceAllowance());
+        addIfPresentTrilingual(earnings, "Food Allowance", "भोजन भत्ता", "খাদ্য ভাতা", emp.getFoodAllowance());
+        addIfPresentTrilingual(earnings, "Gratuity", "ग्रेच्युटी", "গ্র্যাচুইটি", emp.getGratuity());
+        addIfPresentTrilingual(earnings, "Overtime Amount", "ओवरटाइम राशि", "ওভারটাইম মজুরি", emp.getOvertimeAmount());
+        addIfPresentTrilingual(earnings, "Extra Production", "अतिरिक्त उत्पादन", "অতিরিক্ত উৎপাদন", emp.getExtraProduction());
+        addIfPresentTrilingual(earnings, "Performance Incentive", "प्रोत्साहन राशि", "ইনসেনটিভ", emp.getPerformanceIncentive());
+        addIfPresentTrilingual(earnings, "Other Allowances", "अन्य भत्ते", "অন্যান্য ভাতা", emp.getOtherAllowances());
 
         if (earnings.isEmpty()) {
-            addIfPresentBilingual(earnings, "Basic Wages", "মূল বেতন", "0.00");
+            addIfPresentTrilingual(earnings, "Basic Wages", "मूल वेतन", "মূল মজুরি", "0.00");
         }
 
-        // Build Itemized Deductions List: [engLabel, benLabel, amount]
+        // Build Itemized Deductions List: [engLabel, hinLabel, benLabel, amount]
         List<String[]> deductions = new ArrayList<>();
-        addIfPresentBilingual(deductions, "E.P.F. Contribution", "পি.এফ. জমা", emp.getEpfDeduction());
-        addIfPresentBilingual(deductions, "E.S.I.C. Contribution", "ই.এস.আই. জমা", emp.getEsiDeduction());
-        addIfPresentBilingual(deductions, "Advance Deduction", "অগ্রিম কাটা", emp.getAdvanceDeduction());
-        addIfPresentBilingual(deductions, "Other Deductions", "অন্যান্য কর্তন", emp.getOtherDeductions());
+        addIfPresentTrilingual(deductions, "E.P.F. Contribution", "भविष्य निधि (PF)", "প্রভিডেন্ট ফান্ড (PF)", emp.getEpfDeduction());
+        addIfPresentTrilingual(deductions, "E.S.I.C. Contribution", "ई.एस.आई.सी (ESI)", "ই.এস.আই.সি (ESI)", emp.getEsiDeduction());
+        addIfPresentTrilingual(deductions, "Advance Deduction", "अग्रिम कटौती", "অগ্রিম কর্তন", emp.getAdvanceDeduction());
+        addIfPresentTrilingual(deductions, "Other Deductions", "अन्य कटौती", "অন্যান্য কর্তন", emp.getOtherDeductions());
 
         if (deductions.isEmpty()) {
-            addIfPresentBilingual(deductions, "E.P.F. Contribution", "পি.এফ. জমা", "0.00");
+            addIfPresentTrilingual(deductions, "E.P.F. Contribution", "भविष्य निधि (PF)", "প্রভিডেন্ট ফান্ড (PF)", "0.00");
         }
 
         // Render Balanced Table Rows
         int maxRows = Math.max(earnings.size(), deductions.size());
         for (int i = 0; i < maxRows; i++) {
-            String[] eTuple = i < earnings.size() ? earnings.get(i) : new String[]{"", "", ""};
-            String[] dTuple = i < deductions.size() ? deductions.get(i) : new String[]{"", "", ""};
+            String[] eTuple = i < earnings.size() ? earnings.get(i) : new String[]{"", "", "", ""};
+            String[] dTuple = i < deductions.size() ? deductions.get(i) : new String[]{"", "", "", ""};
 
             addPayRow(payTable,
-                    eTuple[0], eTuple[1], eTuple[2],
-                    dTuple[0], dTuple[1], dTuple[2],
-                    engNormalFont, benNormalFont, engNormalFont);
+                    eTuple[0], eTuple[1], eTuple[2], eTuple[3],
+                    dTuple[0], dTuple[1], dTuple[2], dTuple[3],
+                    engNormalFont, hinNormalFont, benNormalFont, engNormalFont);
         }
 
         // Totals Row
         addTotalRow(payTable,
-                "GROSS EARNINGS", "মোট উপার্জন", defaultVal(emp.getGrossEarnings(), "0.00"),
-                "TOTAL DEDUCTIONS", "মোট কর্তন", defaultVal(emp.getTotalDeductions(), "0.00"),
-                engBoldFont, benBoldFont, engBoldFont);
+                "GROSS EARNINGS", "सकल वेतन", "মোট উপার্জন", defaultVal(emp.getGrossEarnings(), "0.00"),
+                "TOTAL DEDUCTIONS", "कुल कटौती", "মোট কর্তন", defaultVal(emp.getTotalDeductions(), "0.00"),
+                engBoldFont, hinBoldFont, benBoldFont, engBoldFont);
 
         // Net Payable Row
-        Phrase netLabelPhrase = createBilingualPhrase("NET PAYABLE", "নিট প্রদেয় টাকা", engBoldFont, benBoldFont);
+        Phrase netLabelPhrase = createTrilingualPhrase("NET PAYABLE", "शुद्ध देय राशि", "নিট প্রদেয় টাকা",
+                engBoldFont, hinBoldFont, benBoldFont);
         PdfPCell netLabelCell = new PdfPCell(netLabelPhrase);
         netLabelCell.setBackgroundColor(new Color(226, 232, 240));
-        netLabelCell.setPadding(6);
+        netLabelCell.setPadding(5);
         payTable.addCell(netLabelCell);
 
         Phrase netValPhrase = new Phrase("Rs. " + defaultVal(emp.getNetPayable(), "0.00"), engBoldFont);
         PdfPCell netValCell = new PdfPCell(netValPhrase);
         netValCell.setBackgroundColor(new Color(226, 232, 240));
-        netValCell.setPadding(6);
+        netValCell.setPadding(5);
         payTable.addCell(netValCell);
 
         PdfPCell emptyCell1 = new PdfPCell(new Phrase("", engNormalFont));
@@ -184,24 +199,32 @@ public class PdfGeneratorService {
         // Footer Note
         Paragraph footer = new Paragraph();
         footer.setAlignment(Element.ALIGN_CENTER);
-        footer.setSpacingBefore(20);
-        footer.add(createBilingualPhrase("This is an official computer-generated payslip", "এটি একটি কম্পিউটার চালিত পে স্লিপ", engFootFont, benFootFont));
+        footer.setSpacingBefore(16);
+        footer.add(createTrilingualPhrase("This is an official computer-generated payslip", "यह एक आधिकारिक कंप्यूटर जनित वेतन पर्ची है", "এটি একটি কম্পিউটার চালিত সরকারি পে স্লিপ",
+                engFootFont, hinFootFont, benFootFont));
         document.add(footer);
 
         document.close();
-        log.info("Generated Bilingual PDF for UAN {}", emp.getUan());
+        log.info("Generated Trilingual (English/Hindi/Bengali) PDF for UAN {}", emp.getUan());
         return out.toByteArray();
     }
 
-    // --- Helper Methods for Bilingual Formatting ---
+    // --- Helper Methods for Trilingual Formatting ---
 
-    private Phrase createBilingualPhrase(String englishText, String bengaliText, Font engFont, Font benFont) {
+    private Phrase createTrilingualPhrase(String englishText, String hindiText, String bengaliText,
+                                          Font engFont, Font hinFont, Font benFont) {
         Phrase p = new Phrase();
         if (englishText != null && !englishText.isEmpty()) {
             p.add(new Chunk(englishText, engFont));
         }
+        if (hindiText != null && !hindiText.isEmpty()) {
+            if (!p.isEmpty()) {
+                p.add(new Chunk(" / ", engFont));
+            }
+            p.add(new Chunk(hindiText, hinFont != null ? hinFont : engFont));
+        }
         if (bengaliText != null && !bengaliText.isEmpty()) {
-            if (englishText != null && !englishText.isEmpty()) {
+            if (!p.isEmpty()) {
                 p.add(new Chunk(" / ", engFont));
             }
             p.add(new Chunk(bengaliText, benFont != null ? benFont : engFont));
@@ -209,37 +232,38 @@ public class PdfGeneratorService {
         return p;
     }
 
-    private void addInfoCell(PdfPTable table, String engLabel, String benLabel, String value,
-                             Font engLabelFont, Font benLabelFont, Font valFont) {
-        Phrase phrase = createBilingualPhrase(engLabel, benLabel, engLabelFont, benLabelFont);
+    private void addInfoCell(PdfPTable table, String engLabel, String hinLabel, String benLabel, String value,
+                             Font engLabelFont, Font hinLabelFont, Font benLabelFont, Font valFont) {
+        Phrase phrase = createTrilingualPhrase(engLabel, hinLabel, benLabel, engLabelFont, hinLabelFont, benLabelFont);
         phrase.add(new Chunk(": ", engLabelFont));
         phrase.add(new Chunk(value != null ? value : "", valFont));
 
         PdfPCell cell = new PdfPCell(phrase);
         cell.setBackgroundColor(new Color(248, 250, 252));
         cell.setBorderColor(new Color(203, 213, 225));
-        cell.setPadding(6);
+        cell.setPadding(5);
         table.addCell(cell);
     }
 
-    private void addHeaderCell(PdfPTable table, String engText, String benText, Font engFont, Font benFont) {
-        Phrase phrase = createBilingualPhrase(engText, benText, engFont, benFont);
+    private void addHeaderCell(PdfPTable table, String engText, String hinText, String benText,
+                               Font engFont, Font hinFont, Font benFont) {
+        Phrase phrase = createTrilingualPhrase(engText, hinText, benText, engFont, hinFont, benFont);
         PdfPCell cell = new PdfPCell(phrase);
         cell.setBackgroundColor(new Color(30, 41, 59));
-        cell.setPadding(6);
+        cell.setPadding(5);
         cell.setBorderColor(new Color(203, 213, 225));
         table.addCell(cell);
     }
 
     private void addPayRow(PdfPTable table,
-                           String engEarning, String benEarning, String eAmt,
-                           String engDeduction, String benDeduction, String dAmt,
-                           Font engFont, Font benFont, Font valFont) {
+                           String engEarning, String hinEarning, String benEarning, String eAmt,
+                           String engDeduction, String hinDeduction, String benDeduction, String dAmt,
+                           Font engFont, Font hinFont, Font benFont, Font valFont) {
 
-        Phrase ePhrase = createBilingualPhrase(engEarning, benEarning, engFont, benFont);
+        Phrase ePhrase = createTrilingualPhrase(engEarning, hinEarning, benEarning, engFont, hinFont, benFont);
         Phrase eAmtPhrase = new Phrase(eAmt != null ? eAmt : "", valFont);
 
-        Phrase dPhrase = createBilingualPhrase(engDeduction, benDeduction, engFont, benFont);
+        Phrase dPhrase = createTrilingualPhrase(engDeduction, hinDeduction, benDeduction, engFont, hinFont, benFont);
         Phrase dAmtPhrase = new Phrase(dAmt != null ? dAmt : "", valFont);
 
         PdfPCell c1 = new PdfPCell(ePhrase);
@@ -248,21 +272,21 @@ public class PdfGeneratorService {
         PdfPCell c4 = new PdfPCell(dAmtPhrase);
 
         for (PdfPCell c : new PdfPCell[]{c1, c2, c3, c4}) {
-            c.setPadding(6);
+            c.setPadding(5);
             c.setBorderColor(new Color(203, 213, 225));
             table.addCell(c);
         }
     }
 
     private void addTotalRow(PdfPTable table,
-                            String engEarning, String benEarning, String eAmt,
-                            String engDeduction, String benDeduction, String dAmt,
-                            Font engFont, Font benFont, Font valFont) {
+                             String engEarning, String hinEarning, String benEarning, String eAmt,
+                             String engDeduction, String hinDeduction, String benDeduction, String dAmt,
+                             Font engFont, Font hinFont, Font benFont, Font valFont) {
 
-        Phrase ePhrase = createBilingualPhrase(engEarning, benEarning, engFont, benFont);
+        Phrase ePhrase = createTrilingualPhrase(engEarning, hinEarning, benEarning, engFont, hinFont, benFont);
         Phrase eAmtPhrase = new Phrase(eAmt != null ? eAmt : "", valFont);
 
-        Phrase dPhrase = createBilingualPhrase(engDeduction, benDeduction, engFont, benFont);
+        Phrase dPhrase = createTrilingualPhrase(engDeduction, hinDeduction, benDeduction, engFont, hinFont, benFont);
         Phrase dAmtPhrase = new Phrase(dAmt != null ? dAmt : "", valFont);
 
         PdfPCell c1 = new PdfPCell(ePhrase);
@@ -272,20 +296,39 @@ public class PdfGeneratorService {
 
         for (PdfPCell c : new PdfPCell[]{c1, c2, c3, c4}) {
             c.setBackgroundColor(new Color(241, 245, 249));
-            c.setPadding(6);
+            c.setPadding(5);
             c.setBorderColor(new Color(203, 213, 225));
             table.addCell(c);
         }
     }
 
-    private void addIfPresentBilingual(List<String[]> list, String engLabel, String benLabel, String val) {
+    private void addIfPresentTrilingual(List<String[]> list, String engLabel, String hinLabel, String benLabel, String val) {
         if (val != null && !val.isBlank() && !val.equals("0.00") && !val.equals("0")) {
-            list.add(new String[]{engLabel, benLabel, val});
+            list.add(new String[]{engLabel, hinLabel, benLabel, val});
         }
     }
 
     private String defaultVal(String val, String fallback) {
         return (val != null && !val.isBlank()) ? val : fallback;
     }
-}
 
+    private BaseFont loadFontSafe(String classpathResource, String fallbackFilePath) {
+        try (InputStream is = getClass().getResourceAsStream(classpathResource)) {
+            if (is != null) {
+                byte[] bytes = is.readAllBytes();
+                String fontName = classpathResource.substring(classpathResource.lastIndexOf('/') + 1);
+                return BaseFont.createFont(fontName, BaseFont.IDENTITY_H, BaseFont.EMBEDDED, true, bytes, null);
+            }
+        } catch (Exception e) {
+            log.warn("Could not load font from classpath {}: {}", classpathResource, e.getMessage());
+        }
+
+        try {
+            return BaseFont.createFont(fallbackFilePath, BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
+        } catch (Exception e) {
+            log.warn("Could not load font from file path {}: {}", fallbackFilePath, e.getMessage());
+        }
+
+        return null;
+    }
+}
