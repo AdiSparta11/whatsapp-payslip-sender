@@ -162,6 +162,14 @@ public class ExcelParserService {
         log.info("Found wage sheet: '{}'", wageSheet.getSheetName());
         List<Employee> employees = parseWageSheetFromSheet(wageSheet);
 
+        String siteName = detectSiteName(workbook);
+        log.info("Detected site name: {}", siteName);
+        if (siteName != null) {
+            for (Employee emp : employees) {
+                emp.setSiteName(siteName);
+            }
+        }
+
         Sheet contactSheet = findBestContactSheet(workbook);
         ContactStore contactStore = new ContactStore();
         if (contactSheet != null) {
@@ -878,6 +886,38 @@ public class ExcelParserService {
                         String val = getCellByIndex(row, c2);
                         if (val != null && !val.isBlank()) {
                             return val.trim();
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Detects the principal employer's site name from the "SITE NAME-..." cell on the
+     * PAYSILP sheet (the company's own pre-formatted payslip view), so the generated
+     * PDF header reflects whichever plant/site the uploaded workbook is for instead of
+     * a fixed value. Falls back to null (caller uses a default) if no PAYSILP-style
+     * sheet or SITE NAME cell is found.
+     */
+    private String detectSiteName(Workbook workbook) {
+        for (int i = 0; i < workbook.getNumberOfSheets(); i++) {
+            Sheet sheet = workbook.getSheetAt(i);
+            String sheetName = sheet.getSheetName().toUpperCase();
+            if (!sheetName.contains("PAYSILP") && !sheetName.contains("PAYSLIP")) continue;
+
+            for (int r = 0; r <= Math.min(5, sheet.getLastRowNum()); r++) {
+                Row row = sheet.getRow(r);
+                if (row == null) continue;
+                for (int c = 0; c < row.getLastCellNum(); c++) {
+                    String text = getCellByIndex(row, c);
+                    if (text != null && text.toUpperCase().contains("SITE NAME")) {
+                        String cleaned = text.replaceAll("(?i)site\\s*name\\s*[-:]\\s*", "").trim();
+                        cleaned = cleaned.replaceAll(",(?=\\S)", ", ");
+                        cleaned = cleaned.replaceAll("-(?=\\d)", " - ");
+                        if (!cleaned.isBlank()) {
+                            return cleaned;
                         }
                     }
                 }

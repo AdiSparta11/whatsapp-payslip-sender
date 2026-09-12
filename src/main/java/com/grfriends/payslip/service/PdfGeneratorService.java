@@ -92,9 +92,10 @@ public class PdfGeneratorService {
             document.add(titleTranslationPara);
         }
 
+        String siteRaw = defaultVal(emp.getSiteName(), "GRAPHITE INDIA LIMITED, DURGAPUR");
         Paragraph site = new Paragraph();
         site.setAlignment(Element.ALIGN_CENTER);
-        site.add(createTrilingualPhrase("GRAPHITE INDIA LIMITED, DURGAPUR", "ग्रेफाइट इंडिया लिमिटेड, दुर्गापुर", "গ্রাফাইট ইন্ডিয়া লিমিটেড, দুর্গাপুর",
+        site.add(createTrilingualPhrase(siteRaw, "ग्रेफाइट इंडिया लिमिटेड, दुर्गापुर", "গ্রাফাইট ইন্ডিয়া লিমিটেড, দুর্গাপুর",
                 engSubTitleFont, hinSubTitleFont, benSubTitleFont));
         document.add(site);
 
@@ -112,10 +113,10 @@ public class PdfGeneratorService {
                 engHeaderFont, hinHeaderFont, benHeaderFont));
         document.add(period);
 
-        // --- Employee Info Table (Trilingual Labels + English Values) ---
-        PdfPTable infoTable = new PdfPTable(2);
+        // --- Employee Info Table (label+translation on the left of each pair, value to its right) ---
+        PdfPTable infoTable = new PdfPTable(4);
         infoTable.setWidthPercentage(100);
-        infoTable.setWidths(new float[]{1, 1});
+        infoTable.setWidths(new float[]{2.1f, 1.4f, 2.1f, 1.4f});
 
         addInfoCell(infoTable, "Pay Slip No", "पे स्लिप नं.", "পে স্লিপ নং", String.valueOf(emp.getSlNo()),
                 engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
@@ -127,11 +128,11 @@ public class PdfGeneratorService {
                 engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
         addInfoCell(infoTable, "Designation", "पद", "পদ", defaultVal(emp.getDesignation(), "WORKMAN"),
                 engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
-        addInfoCell(infoTable, "Days Worked", "कार्य दिवस", "কাজের দিন", defaultVal(emp.getDaysWorked(), "0"),
+        addInfoCell(infoTable, "Days Worked", "कार्य दिवसों की संख्या", "কাজের দিনের সংখ্যা", defaultVal(emp.getDaysWorked(), "0"),
                 engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
-        addInfoCell(infoTable, "Basic Rate", "दैनिक मूल दर", "দৈনিক মজুরি হার", "Rs. " + formatAmount(defaultVal(emp.getBasicRate(), "0.00")),
+        addInfoCell(infoTable, "Basic Rate", "बेसिक रेट", "বেসিক রেট", "Rs. " + formatAmount(defaultVal(emp.getBasicRate(), "0.00")),
                 engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
-        addInfoCell(infoTable, "Gross Earnings", "संपूर्ण वेतन", "মোট উপার্জন", "Rs. " + formatAmount(defaultVal(emp.getGrossEarnings(), "0.00")),
+        addInfoCell(infoTable, "Gross Earnings", "कुल भुगतान की गई राशि", "মোট প্রদত্ত অর্থের পরিমাণ", "Rs. " + formatAmount(defaultVal(emp.getGrossEarnings(), "0.00")),
                 engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
 
         document.add(infoTable);
@@ -153,32 +154,32 @@ public class PdfGeneratorService {
 
         // Build Itemized Earnings List: [engLabel, hinLabel, benLabel, amount]
         List<String[]> earnings = new ArrayList<>();
-        addIfPresentTrilingual(earnings, "Basic Wages", "मूल वेतन", "মূল মজুরি", emp.getBasicAmount());
-        addIfPresentTrilingual(earnings, "Dearness Allowance (DA)", "महंगाई भत्ता", "মহার্ঘ ভাতা", emp.getDa());
-        addIfPresentTrilingual(earnings, "House Rent Allowance (HRA)", "मकान किराया भत्ता", "বাড়ি ভাড়া ভাতা", emp.getHra());
-        addIfPresentTrilingual(earnings, "Washing Allowance", "धुलाई भत्ता", "ধোলাই ভাতা", emp.getWashingAllowance());
-        addIfPresentTrilingual(earnings, "Fuel Allowance", "ईंधन भत्ता", "জ্বালানি ভাতা", emp.getFuelAllowance());
-        addIfPresentTrilingual(earnings, "Attendance Allowance", "उपस्थिति भत्ता", "উপস্থিতি ভাতা", emp.getAttendanceAllowance());
-        addIfPresentTrilingual(earnings, "Food Allowance", "भोजन भत्ता", "খাদ্য ভাতা", emp.getFoodAllowance());
+        addIfPresentTrilingual(earnings, "Basic Wages", "बेसिक वेतन", "বেসিক মজুরি", emp.getBasicAmount());
+        addIfPresentTrilingual(earnings, "Dearness Allowance (DA)", "डीए", "ডিএ", emp.getDa());
+        addIfPresentTrilingual(earnings, "House Rent Allowance (HRA)", "एचआरए", "বাড়িভাড়া ভাতা", emp.getHra());
+        addIfPresentTrilingual(earnings, "Washing Allowance", "धुलाई भत्ता", "ধোয়ার ভাতা", emp.getWashingAllowance());
+        addIfPresentTrilingual(earnings, "Fuel Allowance", "फ्यूल अलाउंस", "ফুয়েল অ্যালাউন্স", emp.getFuelAllowance());
+        addIfPresentTrilingual(earnings, "Attendance Allowance", "अटेंडेंस अलाउंस", "অ্যাটেনডেন্স অ্যালাউন্স", emp.getAttendanceAllowance());
+        addIfPresentTrilingual(earnings, "Food Allowance", "फूड अलाउंस", "ফুড অ্যালাউন্স", emp.getFoodAllowance());
         addIfPresentTrilingual(earnings, "Gratuity", "ग्रेच्युटी", "গ্র্যাচুইটি", emp.getGratuity());
-        addIfPresentTrilingual(earnings, "Overtime Amount", "ओवरटाइम राशि", "ওভারটাইম মজুরি", emp.getOvertimeAmount());
-        addIfPresentTrilingual(earnings, "Extra Production", "अतिरिक्त उत्पादन", "অতিরিক্ত উৎপাদন", emp.getExtraProduction());
-        addIfPresentTrilingual(earnings, "Performance Incentive", "प्रोत्साहन राशि", "ইনসেনটিভ", emp.getPerformanceIncentive());
+        addIfPresentTrilingual(earnings, "Overtime Amount", "ओटी अमाउंट", "ওটি এমাউন্ট", emp.getOvertimeAmount());
+        addIfPresentTrilingual(earnings, "Extra Production", "टननेज", "টনেজ", emp.getExtraProduction());
+        addIfPresentTrilingual(earnings, "Performance Incentive", "इंसेंटिव", "ইনসেনটিভ", emp.getPerformanceIncentive());
         addIfPresentTrilingual(earnings, "Other Allowances", "अन्य भत्ते", "অন্যান্য ভাতা", emp.getOtherAllowances());
 
         if (earnings.isEmpty()) {
-            earnings.add(new String[]{"Basic Wages", "मूल वेतन", "মূল মজুরি", "0.00"});
+            earnings.add(new String[]{"Basic Wages", "बेसिक वेतन", "বেসিক মজুরি", "0.00"});
         }
 
         // Build Itemized Deductions List: [engLabel, hinLabel, benLabel, amount]
         List<String[]> deductions = new ArrayList<>();
-        addIfPresentTrilingual(deductions, "E.P.F. Contribution", "भविष्य निधि (ई.पी.एफ.)", "প্রভিডেন্ট ফান্ড (ই.পি.এফ.)", emp.getEpfDeduction());
-        addIfPresentTrilingual(deductions, "E.S.I.C. Contribution", "ई.एस.आई.सी. अंशदान", "ই.এস.আই.সি. (ই.এস.আই.)", emp.getEsiDeduction());
-        addIfPresentTrilingual(deductions, "Advance Deduction", "अग्रिम कटौती", "অগ্রিম কর্তন", emp.getAdvanceDeduction());
+        addIfPresentTrilingual(deductions, "E.P.F. Contribution", "पीएफ", "পিএফ", emp.getEpfDeduction());
+        addIfPresentTrilingual(deductions, "E.S.I.C. Contribution", "ईएसआई", "ইএসআই", emp.getEsiDeduction());
+        addIfPresentTrilingual(deductions, "Advance Deduction", "एडवांस", "অ্যাডভান্স", emp.getAdvanceDeduction());
         addIfPresentTrilingual(deductions, "Other Deductions", "अन्य कटौती", "অন্যান্য কর্তন", emp.getOtherDeductions());
 
         if (deductions.isEmpty()) {
-            deductions.add(new String[]{"E.P.F. Contribution", "भविष्य निधि (ई.पी.एफ.)", "প্রভিডেন্ট ফান্ড (ই.পি.এফ.)", "0.00"});
+            deductions.add(new String[]{"E.P.F. Contribution", "पीएफ", "পিএফ", "0.00"});
         }
 
         // Render Balanced Table Rows
@@ -195,12 +196,12 @@ public class PdfGeneratorService {
 
         // Totals Row
         addTotalRow(payTable,
-                "GROSS EARNINGS", "संपूर्ण वेतन", "মোট উপার্জন", formatAmount(defaultVal(emp.getGrossEarnings(), "0.00")),
-                "TOTAL DEDUCTIONS", "कुल कटौती", "মোট কর্তন", formatAmount(defaultVal(emp.getTotalDeductions(), "0.00")),
+                "GROSS EARNINGS", "कुल भुगतान की गई राशि", "মোট প্রদত্ত অর্থের পরিমাণ", formatAmount(defaultVal(emp.getGrossEarnings(), "0.00")),
+                "TOTAL DEDUCTIONS", "कुल कटौती राशि", "মোট কর্তনকৃত অর্থ", formatAmount(defaultVal(emp.getTotalDeductions(), "0.00")),
                 engBoldFont, hinBoldFont, benBoldFont, engBoldFont);
 
         // Net Payable Row
-        Phrase netLabelPhrase = createTrilingualPhrase("NET PAYABLE", "कुल राशि", "মোট প্রদেয় টাকা",
+        Phrase netLabelPhrase = createTrilingualPhrase("NET PAYABLE", "नेट पेमेंट", "নেট পেমেন্ট",
                 engBoldFont, hinBoldFont, benBoldFont);
         PdfPCell netLabelCell = new PdfPCell(netLabelPhrase);
         netLabelCell.setBackgroundColor(new Color(219, 234, 254));
@@ -260,30 +261,34 @@ public class PdfGeneratorService {
     }
 
     /**
-     * Builds an info-grid cell as three stacked lines: the English label (bold),
-     * a smaller/muted Hindi + Bengali translation line, then the value (bold),
-     * instead of running label/translations/value together in one flowing line.
+     * Adds one label+translation cell (English label bold, Hindi/Bengali translation
+     * smaller/muted below it) followed by a separate value cell to its right, so the
+     * value sits beside the label instead of stacked underneath it.
      */
     private void addInfoCell(PdfPTable table, String engLabel, String hinLabel, String benLabel, String value,
                              Font engLabelFont, Font hinLabelFont, Font benLabelFont, Font valFont) {
-        PdfPCell cell = new PdfPCell();
-        cell.setBackgroundColor(new Color(248, 250, 252));
-        cell.setBorderColor(new Color(203, 213, 225));
-        cell.setPadding(6);
+        PdfPCell labelCell = new PdfPCell();
+        labelCell.setBackgroundColor(new Color(248, 250, 252));
+        labelCell.setBorderColor(new Color(203, 213, 225));
+        labelCell.setPadding(6);
+        labelCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
 
         Paragraph labelPara = new Paragraph(engLabel, engLabelFont);
         labelPara.setSpacingAfter(1f);
-        cell.addElement(labelPara);
+        labelCell.addElement(labelPara);
 
         Phrase translationPhrase = createTrilingualPhrase(null, hinLabel, benLabel, engLabelFont, hinLabelFont, benLabelFont);
         if (!translationPhrase.isEmpty()) {
-            Paragraph translationPara = new Paragraph(translationPhrase);
-            translationPara.setSpacingAfter(3f);
-            cell.addElement(translationPara);
+            labelCell.addElement(new Paragraph(translationPhrase));
         }
+        table.addCell(labelCell);
 
-        cell.addElement(new Paragraph(value != null ? value : "", valFont));
-        table.addCell(cell);
+        PdfPCell valueCell = new PdfPCell(new Phrase(value != null ? value : "", valFont));
+        valueCell.setBackgroundColor(new Color(248, 250, 252));
+        valueCell.setBorderColor(new Color(203, 213, 225));
+        valueCell.setPadding(6);
+        valueCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        table.addCell(valueCell);
     }
 
     private void addHeaderCell(PdfPTable table, String engText, String hinText, String benText,

@@ -39,6 +39,7 @@ public class Employee {
     private String month;        // e.g. "JULY"
     private String year;         // e.g. "2026"
     private String contractorName; // e.g. "FRIENDS ENTERPRISE", "B.P. TRANSPORT"
+    private String siteName; // e.g. "GRAPHITE INDIA LIMITED, DURGAPUR - 11", from the PAYSILP sheet
 
     // --- Getters and Setters ---
 
@@ -140,6 +141,9 @@ public class Employee {
 
     public String getContractorName() { return contractorName; }
     public void setContractorName(String contractorName) { this.contractorName = contractorName; }
+
+    public String getSiteName() { return siteName; }
+    public void setSiteName(String siteName) { this.siteName = siteName; }
 
     /**
      * Whether this employee has a phone number matched from the contact master.
