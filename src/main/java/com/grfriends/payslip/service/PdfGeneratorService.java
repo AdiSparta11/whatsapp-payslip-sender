@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import java.awt.Color;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -106,9 +107,9 @@ public class PdfGeneratorService {
                 engBoldFont, hinBoldFont, benBoldFont, engNormalFont);
         addInfoCell(infoTable, "Days Worked", "कार्य दिवस", "কাজের দিন", defaultVal(emp.getDaysWorked(), "0"),
                 engBoldFont, hinBoldFont, benBoldFont, engNormalFont);
-        addInfoCell(infoTable, "Basic Rate", "दैनिक मूल दर", "দৈনিক মজুরি হার", "Rs. " + defaultVal(emp.getBasicRate(), "0.00"),
+        addInfoCell(infoTable, "Basic Rate", "दैनिक मूल दर", "দৈনিক মজুরি হার", "Rs. " + formatAmount(defaultVal(emp.getBasicRate(), "0.00")),
                 engBoldFont, hinBoldFont, benBoldFont, engNormalFont);
-        addInfoCell(infoTable, "Gross Earnings", "संपूर्ण वेतन", "মোট উপার্জন", "Rs. " + defaultVal(emp.getGrossEarnings(), "0.00"),
+        addInfoCell(infoTable, "Gross Earnings", "संपूर्ण वेतन", "মোট উপার্জন", "Rs. " + formatAmount(defaultVal(emp.getGrossEarnings(), "0.00")),
                 engBoldFont, hinBoldFont, benBoldFont, engNormalFont);
 
         document.add(infoTable);
@@ -144,7 +145,7 @@ public class PdfGeneratorService {
         addIfPresentTrilingual(earnings, "Other Allowances", "अन्य भत्ते", "অন্যান্য ভাতা", emp.getOtherAllowances());
 
         if (earnings.isEmpty()) {
-            addIfPresentTrilingual(earnings, "Basic Wages", "मूल वेतन", "মূল মজুরি", "0.00");
+            earnings.add(new String[]{"Basic Wages", "मूल वेतन", "মূল মজুরি", "0.00"});
         }
 
         // Build Itemized Deductions List: [engLabel, hinLabel, benLabel, amount]
@@ -155,7 +156,7 @@ public class PdfGeneratorService {
         addIfPresentTrilingual(deductions, "Other Deductions", "अन्य कटौती", "অন্যান্য কর্তন", emp.getOtherDeductions());
 
         if (deductions.isEmpty()) {
-            addIfPresentTrilingual(deductions, "E.P.F. Contribution", "भविष्य निधि (ई.पी.एफ.)", "প্রভিডেন্ট ফান্ড (ই.পি.এফ.)", "0.00");
+            deductions.add(new String[]{"E.P.F. Contribution", "भविष्य निधि (ई.पी.एफ.)", "প্রভিডেন্ট ফান্ড (ই.পি.এফ.)", "0.00"});
         }
 
         // Render Balanced Table Rows
@@ -172,8 +173,8 @@ public class PdfGeneratorService {
 
         // Totals Row
         addTotalRow(payTable,
-                "GROSS EARNINGS", "संपूर्ण वेतन", "মোট উপার্জন", defaultVal(emp.getGrossEarnings(), "0.00"),
-                "TOTAL DEDUCTIONS", "कुल कटौती", "মোট কর্তন", defaultVal(emp.getTotalDeductions(), "0.00"),
+                "GROSS EARNINGS", "संपूर्ण वेतन", "মোট উপার্জন", formatAmount(defaultVal(emp.getGrossEarnings(), "0.00")),
+                "TOTAL DEDUCTIONS", "कुल कटौती", "মোট কর্তন", formatAmount(defaultVal(emp.getTotalDeductions(), "0.00")),
                 engBoldFont, hinBoldFont, benBoldFont, engBoldFont);
 
         // Net Payable Row
@@ -184,7 +185,7 @@ public class PdfGeneratorService {
         netLabelCell.setPadding(5);
         payTable.addCell(netLabelCell);
 
-        Phrase netValPhrase = new Phrase("Rs. " + defaultVal(emp.getNetPayable(), "0.00"), engBoldFont);
+        Phrase netValPhrase = new Phrase("Rs. " + formatAmount(defaultVal(emp.getNetPayable(), "0.00")), engBoldFont);
         PdfPCell netValCell = new PdfPCell(netValPhrase);
         netValCell.setBackgroundColor(new Color(226, 232, 240));
         netValCell.setPadding(5);
@@ -308,12 +309,26 @@ public class PdfGeneratorService {
 
     private void addIfPresentTrilingual(List<String[]> list, String engLabel, String hinLabel, String benLabel, String val) {
         if (val != null && !val.isBlank() && !val.equals("0.00") && !val.equals("0")) {
-            list.add(new String[]{engLabel, hinLabel, benLabel, val});
+            list.add(new String[]{engLabel, hinLabel, benLabel, formatAmount(val)});
         }
     }
 
     private String defaultVal(String val, String fallback) {
         return (val != null && !val.isBlank()) ? val : fallback;
+    }
+
+    /**
+     * Formats a raw numeric string with thousands separators (e.g. "10694.00" -> "10,694.00")
+     * to match the statutory payslip format. Falls back to the original value if unparseable.
+     */
+    private String formatAmount(String val) {
+        if (val == null || val.isBlank()) return val;
+        try {
+            double d = Double.parseDouble(val.replaceAll("[^0-9.\\-]", ""));
+            return new DecimalFormat("#,##0.00").format(d);
+        } catch (NumberFormatException e) {
+            return val;
+        }
     }
 
     private String getMonthHindi(String month) {
