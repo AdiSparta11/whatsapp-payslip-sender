@@ -227,7 +227,7 @@ public class PdfGeneratorService {
                 engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
         addInfoCell(infoTable, "UAN No", "यू.ए.एन. नं.", "ইউ.এ.এন নং", emp.getUan(),
                 engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
-        addInfoCell(infoTable, "Designation", "पद", "পদ", defaultVal(emp.getDesignation(), "WORKMAN"),
+        addInfoCell(infoTable, "Designation", "पद", "পদ", defaultVal(emp.getDesignation(), "Helper"),
                 engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
         addInfoCell(infoTable, "Days Worked", "कार्य दिवसों की संख्या", "কাজের দিনের সংখ্যা", defaultVal(emp.getDaysWorked(), "0"),
                 engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
@@ -240,10 +240,6 @@ public class PdfGeneratorService {
         addInfoCell(infoTable, "Total Days", "कुल दिन", "মোট দিন", defaultVal(emp.getTotalDays(), "0"),
                 engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
         addInfoCell(infoTable, "Basic Rate", "बेसिक रेट", "বেসিক রেট", "Rs. " + formatAmount(defaultVal(emp.getBasicRate(), "0.00")),
-                engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
-        addInfoCell(infoTable, "ESIC Salary", "ईएसआईसी वेतन", "ইএসআইসি বেতন", "Rs. " + formatAmount(defaultVal(emp.getEsicSalary(), "0.00")),
-                engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
-        addInfoCell(infoTable, "EPF Salary", "कुल ईपीएफ वेतन", "মোট ইপিএফ বেতন", "Rs. " + formatAmount(defaultVal(emp.getEpfoSalary(), "0.00")),
                 engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
 
         document.add(infoTable);
@@ -303,6 +299,12 @@ public class PdfGeneratorService {
                 "TOTAL DEDUCTIONS", "कुल कटौती राशि", "মোট কর্তনকৃত অর্থ", formatAmount(defaultVal(emp.getTotalDeductions(), "0.00")),
                 engBoldFont, hinBoldFont, benBoldFont, engBoldFont);
 
+        // ESIC / EPF wage bases sit directly below the gross total, as on the PAYSILP sheet.
+        addPayRow(payTable,
+                "ESIC Salary", "ईएसआईसी वेतन", "ইএসআইসি বেতন", formatAmount(defaultVal(emp.getEsicSalary(), "0.00")),
+                "EPF Salary", "कुल ईपीएफ वेतन", "মোট ইপিএফ বেতন", formatAmount(defaultVal(emp.getEpfoSalary(), "0.00")),
+                engNormalFont, hinNormalFont, benNormalFont, engNormalFont);
+
         // Net Payable Row
         Phrase netLabelPhrase = createTrilingualPhrase("NET PAYABLE", "नेट पेमेंट", "নেট পেমেন্ট",
                 engBoldFont, hinBoldFont, benBoldFont);
@@ -313,6 +315,7 @@ public class PdfGeneratorService {
 
         Phrase netValPhrase = new Phrase("Rs. " + formatAmount(defaultVal(emp.getNetPayable(), "0.00")), engBoldFont);
         PdfPCell netValCell = new PdfPCell(netValPhrase);
+        netValCell.setHorizontalAlignment(Element.ALIGN_RIGHT);
         netValCell.setBackgroundColor(new Color(219, 234, 254));
         netValCell.setPadding(5);
         payTable.addCell(netValCell);
@@ -453,9 +456,12 @@ public class PdfGeneratorService {
         PdfPCell c2 = new PdfPCell(eAmtPhrase);
         PdfPCell c3 = new PdfPCell(dPhrase);
         PdfPCell c4 = new PdfPCell(dAmtPhrase);
+        c2.setHorizontalAlignment(Element.ALIGN_RIGHT);
+        c4.setHorizontalAlignment(Element.ALIGN_RIGHT);
 
         for (PdfPCell c : new PdfPCell[]{c1, c2, c3, c4}) {
             c.setPadding(5);
+            c.setVerticalAlignment(Element.ALIGN_MIDDLE);
             c.setBorderColor(new Color(203, 213, 225));
             table.addCell(c);
         }
@@ -476,10 +482,13 @@ public class PdfGeneratorService {
         PdfPCell c2 = new PdfPCell(eAmtPhrase);
         PdfPCell c3 = new PdfPCell(dPhrase);
         PdfPCell c4 = new PdfPCell(dAmtPhrase);
+        c2.setHorizontalAlignment(Element.ALIGN_RIGHT);
+        c4.setHorizontalAlignment(Element.ALIGN_RIGHT);
 
         for (PdfPCell c : new PdfPCell[]{c1, c2, c3, c4}) {
             c.setBackgroundColor(new Color(239, 246, 255));
             c.setPadding(5);
+            c.setVerticalAlignment(Element.ALIGN_MIDDLE);
             c.setBorderColor(new Color(203, 213, 225));
             table.addCell(c);
         }
