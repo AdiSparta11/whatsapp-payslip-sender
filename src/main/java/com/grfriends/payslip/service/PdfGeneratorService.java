@@ -227,7 +227,7 @@ public class PdfGeneratorService {
                 engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
         addInfoCell(infoTable, "UAN No", "यू.ए.एन. नं.", "ইউ.এ.এন নং", emp.getUan(),
                 engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
-        addInfoCell(infoTable, "Designation", "पद", "পদ", defaultVal(emp.getDesignation(), "Helper"),
+        addInfoCell(infoTable, "Designation", "पद", "পদ", defaultVal(emp.getDesignation(), "HELPER"),
                 engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
         addInfoCell(infoTable, "Days Worked", "कार्य दिवसों की संख्या", "কাজের দিনের সংখ্যা", defaultVal(emp.getDaysWorked(), "0"),
                 engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
