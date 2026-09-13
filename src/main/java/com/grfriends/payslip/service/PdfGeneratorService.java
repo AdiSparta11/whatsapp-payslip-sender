@@ -231,7 +231,7 @@ public class PdfGeneratorService {
                 engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
         addInfoCell(infoTable, "Days Worked", "कार्य दिवसों की संख्या", "কাজের দিনের সংখ্যা", defaultVal(emp.getDaysWorked(), "0"),
                 engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
-        addInfoCell(infoTable, "PL (Earned Leave)", "अर्जित अवकाश", "অর্জিত ছুটি", defaultVal(emp.getPl(), "0"),
+        addInfoCell(infoTable, "PL (Paid Leave)", "अर्जित अवकाश", "অর্জিত ছুটি", defaultVal(emp.getPl(), "0"),
                 engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
         addInfoCell(infoTable, "CL (Casual Leave)", "कैज़ुअल लीव", "ক্যাজুয়াল লিভ", defaultVal(emp.getCl(), "0"),
                 engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
