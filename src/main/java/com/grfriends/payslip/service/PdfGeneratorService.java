@@ -211,6 +211,8 @@ public class PdfGeneratorService {
         document.add(period);
 
         // --- Employee Info Table (label+translation on the left of each pair, value to its right) ---
+        // Field order follows the PAYSILP sheet: slip no/name, month/ESI/UAN, attendance
+        // (days worked, PL, CL, festival, total), basic rate, then the ESIC/EPF wage bases.
         PdfPTable infoTable = new PdfPTable(4);
         infoTable.setWidthPercentage(100);
         infoTable.setWidths(new float[]{2.1f, 1.4f, 2.1f, 1.4f});
@@ -219,9 +221,11 @@ public class PdfGeneratorService {
                 engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
         addInfoCell(infoTable, "Employee Name", "कर्मचारी का नाम", "শ্রমিকের নাম", emp.getName(),
                 engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
-        addInfoCell(infoTable, "UAN No", "यू.ए.एन. नं.", "ইউ.এ.এন নং", emp.getUan(),
+        addInfoCell(infoTable, "Pay Period", null, null, rawMonth + " " + rawYear,
                 engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
         addInfoCell(infoTable, "ESI No", "ई.एस.आई. नं.", "ই.এস.আই নং", defaultVal(emp.getEsiNo(), "-"),
+                engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
+        addInfoCell(infoTable, "UAN No", "यू.ए.एन. नं.", "ইউ.এ.এন নং", emp.getUan(),
                 engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
         addInfoCell(infoTable, "Designation", "पद", "পদ", defaultVal(emp.getDesignation(), "WORKMAN"),
                 engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
@@ -236,8 +240,6 @@ public class PdfGeneratorService {
         addInfoCell(infoTable, "Total Days", "कुल दिन", "মোট দিন", defaultVal(emp.getTotalDays(), "0"),
                 engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
         addInfoCell(infoTable, "Basic Rate", "बेसिक रेट", "বেসিক রেট", "Rs. " + formatAmount(defaultVal(emp.getBasicRate(), "0.00")),
-                engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
-        addInfoCell(infoTable, "Gross Earnings", "कुल भुगतान की गई राशि", "মোট প্রদত্ত অর্থের পরিমাণ", "Rs. " + formatAmount(defaultVal(emp.getGrossEarnings(), "0.00")),
                 engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
         addInfoCell(infoTable, "ESIC Salary", "ईएसआईसी वेतन", "ইএসআইসি বেতন", "Rs. " + formatAmount(defaultVal(emp.getEsicSalary(), "0.00")),
                 engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
@@ -267,12 +269,12 @@ public class PdfGeneratorService {
         List<String[]> earnings = new ArrayList<>();
         addRow(earnings, "Basic Wages", "बेसिक वेतन", "বেসিক মজুরি", emp.getBasicAmount());
         addRow(earnings, "Dearness Allowance (DA)", "डीए", "ডিএ", emp.getDa());
-        addRow(earnings, "House Rent Allowance (HRA)", "एचआरए", "বাড়িভাড়া ভাতা", emp.getHra());
         addRow(earnings, "Washing Allowance", "धुलाई भत्ता", "ধোয়ার ভাতা", emp.getWashingAllowance());
         addRow(earnings, "Fuel Allowance", "फ्यूल अलाउंस", "ফুয়েল অ্যালাউন্স", emp.getFuelAllowance());
         addRow(earnings, "Attendance Allowance", "अटेंडेंस अलाउंस", "অ্যাটেনডেন্স অ্যালাউন্স", emp.getAttendanceAllowance());
         addRow(earnings, "Food Allowance", "फूड अलाउंस", "ফুড অ্যালাউন্স", emp.getFoodAllowance());
         addRow(earnings, "Gratuity", "ग्रेच्युटी", "গ্র্যাচুইটি", emp.getGratuity());
+        addRow(earnings, "House Rent Allowance (HRA)", "एचआरए", "বাড়িভাড়া ভাতা", emp.getHra());
         addRow(earnings, "Overtime Hours", "ओटी", "ওটি", emp.getOvertimeDays());
         addRow(earnings, "Overtime Amount", "ओटी अमाउंट", "ওটি এমাউন্ট", emp.getOvertimeAmount());
         addRow(earnings, "Extra Production (Tons)", "टननेज", "টনেজ", emp.getExtraProduction());
@@ -509,18 +511,48 @@ public class PdfGeneratorService {
         int style = pdfFont.getStyle();
         boolean bold = style != Font.UNDEFINED && (style & Font.BOLD) != 0;
 
+        Font latinFont = FontFactory.getFont(bold ? FontFactory.HELVETICA_BOLD : FontFactory.HELVETICA, sizePt, color);
+
         String[] words = text.trim().split("\\s+");
         for (int i = 0; i < words.length; i++) {
             if (i > 0) {
                 phrase.add(new Chunk(" ", pdfFont));
             }
-            try {
-                phrase.add(buildIndicWordChunk(words[i], awtFont, sizePt, color, bold));
-            } catch (Throwable t) {
-                log.warn("Image rendering failed for Indic word '{}', using plain text: {}", words[i], t.toString());
-                phrase.add(new Chunk(fixPreBaseMatra(words[i]), pdfFont));
+            // Only runs of Indic-script characters are rendered as images. ASCII punctuation,
+            // hyphens and digits mixed into a word ("ई.एस.आई", "লিমিটেড,", "2026") are emitted
+            // as normal Helvetica text: the Indic fonts don't necessarily carry those glyphs
+            // (Noto Sans Bengali shows them as boxes), and as text they match the rest of the page.
+            for (String run : splitIndicRuns(words[i])) {
+                if (!isIndicScript(run.charAt(0))) {
+                    phrase.add(new Chunk(run, latinFont));
+                    continue;
+                }
+                try {
+                    phrase.add(buildIndicWordChunk(run, awtFont, sizePt, color, bold));
+                } catch (Throwable t) {
+                    log.warn("Image rendering failed for Indic text '{}', using plain text: {}", run, t.toString());
+                    phrase.add(new Chunk(fixPreBaseMatra(run), pdfFont));
+                }
             }
         }
+    }
+
+    private static boolean isIndicScript(char c) {
+        // Devanagari (U+0900-097F) and Bengali (U+0980-09FF) blocks, plus ZWNJ/ZWJ which
+        // must stay inside a script run so they keep affecting conjunct formation.
+        return (c >= 'ऀ' && c <= '৿') || c == '‌' || c == '‍';
+    }
+
+    private static List<String> splitIndicRuns(String word) {
+        List<String> runs = new ArrayList<>();
+        int start = 0;
+        for (int i = 1; i <= word.length(); i++) {
+            if (i == word.length() || isIndicScript(word.charAt(i)) != isIndicScript(word.charAt(start))) {
+                runs.add(word.substring(start, i));
+                start = i;
+            }
+        }
+        return runs;
     }
 
     private Chunk buildIndicWordChunk(String word, java.awt.Font awtFont, float sizePt, Color color, boolean bold)
