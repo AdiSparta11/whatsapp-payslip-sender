@@ -296,7 +296,7 @@ public class PdfGeneratorService {
         // Totals Row
         addTotalRow(payTable,
                 "GROSS EARNINGS", "कुल भुगतान की गई राशि", "মোট প্রদত্ত অর্থের পরিমাণ", formatAmount(defaultVal(emp.getGrossEarnings(), "0.00")),
-                "TOTAL DEDUCTIONS", "कुल कटौती राशि", "মোট কর্তনকৃত অর্থ", formatAmount(defaultVal(emp.getTotalDeductions(), "0.00")),
+                "", "", "", "",
                 engBoldFont, hinBoldFont, benBoldFont, engBoldFont);
 
         // ESIC / EPF wage bases sit directly below the gross total, as on the PAYSILP sheet.
@@ -315,6 +315,7 @@ public class PdfGeneratorService {
         PdfPCell netLabelCell = new PdfPCell(netLabelPhrase);
         netLabelCell.setBackgroundColor(new Color(219, 234, 254));
         netLabelCell.setPadding(5);
+        netLabelCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
         payTable.addCell(netLabelCell);
 
         Phrase netValPhrase = new Phrase("Rs. " + formatAmount(defaultVal(emp.getNetPayable(), "0.00")), engBoldFont);
@@ -322,15 +323,23 @@ public class PdfGeneratorService {
         netValCell.setHorizontalAlignment(Element.ALIGN_RIGHT);
         netValCell.setBackgroundColor(new Color(219, 234, 254));
         netValCell.setPadding(5);
+        netValCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
         payTable.addCell(netValCell);
 
-        PdfPCell emptyCell1 = new PdfPCell(new Phrase("", engNormalFont));
-        emptyCell1.setBackgroundColor(new Color(219, 234, 254));
-        payTable.addCell(emptyCell1);
+        Phrase dedLabelPhrase = createTrilingualPhrase("TOTAL DEDUCTIONS", "कुल कटौती राशि", "মোট কর্তনকৃত অর্থ",
+                engBoldFont, hinBoldFont, benBoldFont);
+        PdfPCell dedLabelCell = new PdfPCell(dedLabelPhrase);
+        dedLabelCell.setBackgroundColor(new Color(219, 234, 254));
+        dedLabelCell.setPadding(5);
+        dedLabelCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        payTable.addCell(dedLabelCell);
 
-        PdfPCell emptyCell2 = new PdfPCell(new Phrase("", engNormalFont));
-        emptyCell2.setBackgroundColor(new Color(219, 234, 254));
-        payTable.addCell(emptyCell2);
+        PdfPCell dedValCell = new PdfPCell(new Phrase(formatAmount(defaultVal(emp.getTotalDeductions(), "0.00")), engBoldFont));
+        dedValCell.setHorizontalAlignment(Element.ALIGN_RIGHT);
+        dedValCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        dedValCell.setBackgroundColor(new Color(219, 234, 254));
+        dedValCell.setPadding(5);
+        payTable.addCell(dedValCell);
 
         document.add(payTable);
 
