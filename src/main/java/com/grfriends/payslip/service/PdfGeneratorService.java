@@ -302,7 +302,11 @@ public class PdfGeneratorService {
         // ESIC / EPF wage bases sit directly below the gross total, as on the PAYSILP sheet.
         addPayRow(payTable,
                 "ESIC Salary", "ईएसआईसी वेतन", "ইএসআইসি বেতন", formatAmount(defaultVal(emp.getEsicSalary(), "0.00")),
+                "", "", "", "",
+                engNormalFont, hinNormalFont, benNormalFont, engNormalFont);
+        addPayRow(payTable,
                 "EPF Salary", "कुल ईपीएफ वेतन", "মোট ইপিএফ বেতন", formatAmount(defaultVal(emp.getEpfoSalary(), "0.00")),
+                "", "", "", "",
                 engNormalFont, hinNormalFont, benNormalFont, engNormalFont);
 
         // Net Payable Row
