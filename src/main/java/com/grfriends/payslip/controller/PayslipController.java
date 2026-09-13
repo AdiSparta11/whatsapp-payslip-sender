@@ -239,4 +239,15 @@ public class PayslipController {
                 .contentType(MediaType.APPLICATION_PDF)
                 .body(pdfBytes);
     }
+
+    /**
+     * Read-only diagnostics: reports whether Hindi/Bengali text is being rendered as properly
+     * shaped images or has fallen back to plain text, and why. Contains no employee data.
+     */
+    @GetMapping(value = "/diagnostics/indic-fonts", produces = MediaType.TEXT_PLAIN_VALUE)
+    @ResponseBody
+    public String indicFontDiagnostics() {
+        PdfGeneratorService.initIndicRenderingIfNeeded();
+        return PdfGeneratorService.getIndicRenderingStatus();
+    }
 }

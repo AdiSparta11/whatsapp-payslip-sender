@@ -20,6 +20,11 @@ FROM eclipse-temurin:17-jre-alpine
 
 WORKDIR /app
 
+# Native libraries required by Java's font subsystem (libfontmanager -> freetype/fontconfig).
+# Without them java.awt.Font.createFont fails and Hindi/Bengali payslip text can't be
+# rendered as properly shaped images (it silently falls back to unshaped plain text).
+RUN apk add --no-cache fontconfig freetype ttf-dejavu
+
 # Create non-root user for security
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 

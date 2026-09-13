@@ -24,6 +24,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.regex.Pattern;
 
 /**
@@ -37,23 +42,88 @@ public class PdfGeneratorService {
     private static final Logger log = LoggerFactory.getLogger(PdfGeneratorService.class);
 
     // AWT fonts used to pre-render Hindi/Bengali text as properly shaped images (see
-    // appendIndicText). Null if the font can't be loaded, in which case Indic text falls
-    // back to plain OpenPDF text with the string-level matra fixes.
-    private static final java.awt.Font HINDI_AWT_FONT;
-    private static final java.awt.Font BENGALI_AWT_FONT;
+    // appendIndicText). Null if they can't be loaded, in which case Indic text falls back
+    // to plain OpenPDF text with the string-level matra fixes.
+    private static volatile java.awt.Font hindiAwtFont;
+    private static volatile java.awt.Font bengaliAwtFont;
+    private static volatile boolean indicRenderingInitialized = false;
+    private static volatile String indicRenderingStatus = "not initialized yet (no PDF generated since startup)";
+    private static volatile String lastFontLoadError = null;
+    private static final long INDIC_FONT_INIT_TIMEOUT_SECONDS = 20;
     private static final Map<String, RenderedText> INDIC_TEXT_IMAGE_CACHE = new ConcurrentHashMap<>();
-
-    static {
-        if (System.getProperty("java.awt.headless") == null) {
-            System.setProperty("java.awt.headless", "true");
-        }
-        HINDI_AWT_FONT = loadAwtFont("/fonts/NotoSansDevanagari-Regular.ttf");
-        BENGALI_AWT_FONT = loadAwtFont("/fonts/NotoSansBengali-Regular.ttf");
-    }
 
     private record RenderedText(Image image, float descentPt) {}
 
+    /** Human-readable state of the image-based Indic rendering, for the diagnostics endpoint. */
+    public static String getIndicRenderingStatus() {
+        return indicRenderingStatus;
+    }
+
+    /**
+     * Loads the AWT fonts and performs one real render, on a background thread with a hard
+     * timeout. This is deliberately NOT done at class-load/Spring-startup time: initializing
+     * the JVM's native font subsystem on a minimal container image can block, and the app
+     * must still boot and serve its port regardless. If loading times out or fails, image
+     * rendering stays disabled and Indic text uses the plain-text fallback.
+     */
+    public static synchronized void initIndicRenderingIfNeeded() {
+        if (indicRenderingInitialized) return;
+        indicRenderingInitialized = true;
+
+        if (System.getProperty("java.awt.headless") == null) {
+            System.setProperty("java.awt.headless", "true");
+        }
+
+        ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
+            Thread t = new Thread(r, "indic-font-init");
+            t.setDaemon(true);
+            return t;
+        });
+        try {
+            Future<java.awt.Font[]> future = executor.submit(() -> {
+                java.awt.Font hindi = loadAwtFont("/fonts/NotoSansDevanagari-Regular.ttf");
+                java.awt.Font bengali = loadAwtFont("/fonts/NotoSansBengali-Regular.ttf");
+                // Force the native font pipeline to fully initialize here, under the timeout,
+                // rather than on the first real word during a request.
+                if (hindi != null) renderTextToImage("क", hindi, 8f, Color.BLACK, false);
+                if (bengali != null) renderTextToImage("ক", bengali, 8f, Color.BLACK, false);
+                return new java.awt.Font[]{hindi, bengali};
+            });
+            java.awt.Font[] fonts = future.get(INDIC_FONT_INIT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            hindiAwtFont = fonts[0];
+            bengaliAwtFont = fonts[1];
+            boolean ready = hindiAwtFont != null && bengaliAwtFont != null;
+            indicRenderingStatus = (ready ? "READY" : "FALLBACK (font load failed)")
+                    + " | hindiFont=" + (hindiAwtFont != null)
+                    + " | bengaliFont=" + (bengaliAwtFont != null)
+                    + " | java.awt.headless=" + System.getProperty("java.awt.headless")
+                    + " | os=" + System.getProperty("os.name") + " " + System.getProperty("os.version")
+                    + " | java=" + System.getProperty("java.vendor") + " " + System.getProperty("java.version")
+                    + (lastFontLoadError != null ? " | lastError=" + lastFontLoadError : "");
+            log.info("Indic image rendering: {}", indicRenderingStatus);
+        } catch (TimeoutException e) {
+            indicRenderingStatus = "TIMEOUT: AWT font initialization did not complete within "
+                    + INDIC_FONT_INIT_TIMEOUT_SECONDS + "s (using plain-text fallback)";
+            log.warn(indicRenderingStatus);
+        } catch (Throwable t) {
+            indicRenderingStatus = "FAILED: " + describe(t) + " (using plain-text fallback)";
+            log.warn(indicRenderingStatus);
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    private static String describe(Throwable t) {
+        Throwable root = t;
+        while (root.getCause() != null && root.getCause() != root) {
+            root = root.getCause();
+        }
+        return root == t ? t.toString() : t + " (root cause: " + root + ")";
+    }
+
     public byte[] generatePayslipPdf(Employee emp) throws Exception {
+        initIndicRenderingIfNeeded();
+
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         Document document = new Document(PageSize.A4, 32, 32, 32, 32);
         PdfWriter writer = PdfWriter.getInstance(document, out);
@@ -276,13 +346,13 @@ public class PdfGeneratorService {
             if (!p.isEmpty()) {
                 p.add(new Chunk(" / ", engFont));
             }
-            appendIndicText(p, hindiText, HINDI_AWT_FONT, hinFont != null ? hinFont : engFont);
+            appendIndicText(p, hindiText, hindiAwtFont, hinFont != null ? hinFont : engFont);
         }
         if (bengaliText != null && !bengaliText.isEmpty()) {
             if (!p.isEmpty()) {
                 p.add(new Chunk(" / ", engFont));
             }
-            appendIndicText(p, bengaliText, BENGALI_AWT_FONT, benFont != null ? benFont : engFont);
+            appendIndicText(p, bengaliText, bengaliAwtFont, benFont != null ? benFont : engFont);
         }
         return p;
     }
@@ -464,7 +534,7 @@ public class PdfGeneratorService {
         return new Chunk(Image.getInstance(rendered.image()), 0, -rendered.descentPt(), true);
     }
 
-    private RenderedText renderTextToImage(String text, java.awt.Font awtFont, float sizePt, Color color, boolean bold)
+    private static RenderedText renderTextToImage(String text, java.awt.Font awtFont, float sizePt, Color color, boolean bold)
             throws Exception {
         // Render at 4x and scale down in the PDF so the text stays crisp when zoomed/printed.
         final float scale = 4f;
@@ -503,12 +573,14 @@ public class PdfGeneratorService {
     private static java.awt.Font loadAwtFont(String classpathResource) {
         try (InputStream is = PdfGeneratorService.class.getResourceAsStream(classpathResource)) {
             if (is == null) {
+                lastFontLoadError = classpathResource + ": resource not found on classpath";
                 log.warn("AWT font resource {} not found; Indic text will use plain-text fallback", classpathResource);
                 return null;
             }
             return java.awt.Font.createFont(java.awt.Font.TRUETYPE_FONT, is);
         } catch (Throwable t) {
-            log.warn("Could not load AWT font {}; Indic text will use plain-text fallback: {}", classpathResource, t.toString());
+            lastFontLoadError = classpathResource + ": " + describe(t);
+            log.warn("Could not load AWT font {}; Indic text will use plain-text fallback: {}", classpathResource, describe(t));
             return null;
         }
     }
