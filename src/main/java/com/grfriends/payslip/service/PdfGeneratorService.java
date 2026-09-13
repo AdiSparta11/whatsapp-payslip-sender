@@ -12,11 +12,18 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.awt.Color;
+import java.awt.FontMetrics;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.geom.Rectangle2D;
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 /**
@@ -28,6 +35,23 @@ import java.util.regex.Pattern;
 public class PdfGeneratorService {
 
     private static final Logger log = LoggerFactory.getLogger(PdfGeneratorService.class);
+
+    // AWT fonts used to pre-render Hindi/Bengali text as properly shaped images (see
+    // appendIndicText). Null if the font can't be loaded, in which case Indic text falls
+    // back to plain OpenPDF text with the string-level matra fixes.
+    private static final java.awt.Font HINDI_AWT_FONT;
+    private static final java.awt.Font BENGALI_AWT_FONT;
+    private static final Map<String, RenderedText> INDIC_TEXT_IMAGE_CACHE = new ConcurrentHashMap<>();
+
+    static {
+        if (System.getProperty("java.awt.headless") == null) {
+            System.setProperty("java.awt.headless", "true");
+        }
+        HINDI_AWT_FONT = loadAwtFont("/fonts/NotoSansDevanagari-Regular.ttf");
+        BENGALI_AWT_FONT = loadAwtFont("/fonts/NotoSansBengali-Regular.ttf");
+    }
+
+    private record RenderedText(Image image, float descentPt) {}
 
     public byte[] generatePayslipPdf(Employee emp) throws Exception {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -252,13 +276,13 @@ public class PdfGeneratorService {
             if (!p.isEmpty()) {
                 p.add(new Chunk(" / ", engFont));
             }
-            p.add(new Chunk(fixPreBaseMatra(hindiText), hinFont != null ? hinFont : engFont));
+            appendIndicText(p, hindiText, HINDI_AWT_FONT, hinFont != null ? hinFont : engFont);
         }
         if (bengaliText != null && !bengaliText.isEmpty()) {
             if (!p.isEmpty()) {
                 p.add(new Chunk(" / ", engFont));
             }
-            p.add(new Chunk(fixPreBaseMatra(bengaliText), benFont != null ? benFont : engFont));
+            appendIndicText(p, bengaliText, BENGALI_AWT_FONT, benFont != null ? benFont : engFont);
         }
         return p;
     }
@@ -393,6 +417,100 @@ public class PdfGeneratorService {
 
     private String defaultVal(String val, String fallback) {
         return (val != null && !val.isBlank()) ? val : fallback;
+    }
+
+    // OpenPDF draws each character's glyph independently with no OpenType shaping, which
+    // garbles Indic scripts (matra reordering, split vowels, conjuncts). Rather than
+    // approximate shaping by rewriting strings, Hindi/Bengali text is rendered to a small
+    // transparent image via java.awt Graphics2D - whose text pipeline does apply full
+    // shaping - and embedded inline as an image Chunk. An image has a fixed width, so this
+    // can't disturb PdfPTable/ColumnText layout the way LayoutProcessor did. Each word is
+    // its own image, joined by real space Chunks, so narrow cells can still wrap between
+    // words. Falls back to plain text (with the string-level matra fixes) if rendering fails.
+    private void appendIndicText(Phrase phrase, String text, java.awt.Font awtFont, Font pdfFont) {
+        if (awtFont == null) {
+            phrase.add(new Chunk(fixPreBaseMatra(text), pdfFont));
+            return;
+        }
+        float sizePt = pdfFont.getSize() > 0 ? pdfFont.getSize() : 8f;
+        Color color = pdfFont.getColor() != null ? pdfFont.getColor() : Color.BLACK;
+        int style = pdfFont.getStyle();
+        boolean bold = style != Font.UNDEFINED && (style & Font.BOLD) != 0;
+
+        String[] words = text.trim().split("\\s+");
+        for (int i = 0; i < words.length; i++) {
+            if (i > 0) {
+                phrase.add(new Chunk(" ", pdfFont));
+            }
+            try {
+                phrase.add(buildIndicWordChunk(words[i], awtFont, sizePt, color, bold));
+            } catch (Throwable t) {
+                log.warn("Image rendering failed for Indic word '{}', using plain text: {}", words[i], t.toString());
+                phrase.add(new Chunk(fixPreBaseMatra(words[i]), pdfFont));
+            }
+        }
+    }
+
+    private Chunk buildIndicWordChunk(String word, java.awt.Font awtFont, float sizePt, Color color, boolean bold)
+            throws Exception {
+        String cacheKey = awtFont.getFontName() + "|" + sizePt + "|" + color.getRGB() + "|" + bold + "|" + word;
+        RenderedText rendered = INDIC_TEXT_IMAGE_CACHE.get(cacheKey);
+        if (rendered == null) {
+            rendered = renderTextToImage(word, awtFont, sizePt, color, bold);
+            INDIC_TEXT_IMAGE_CACHE.put(cacheKey, rendered);
+        }
+        // Image bottom lands at baseline + offsetY, so shifting down by the descent puts the
+        // rendered glyph baseline exactly on the surrounding text baseline.
+        return new Chunk(Image.getInstance(rendered.image()), 0, -rendered.descentPt(), true);
+    }
+
+    private RenderedText renderTextToImage(String text, java.awt.Font awtFont, float sizePt, Color color, boolean bold)
+            throws Exception {
+        // Render at 4x and scale down in the PDF so the text stays crisp when zoomed/printed.
+        final float scale = 4f;
+        java.awt.Font font = awtFont.deriveFont(bold ? java.awt.Font.BOLD : java.awt.Font.PLAIN, sizePt * scale);
+
+        BufferedImage probe = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D pg = probe.createGraphics();
+        pg.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
+        pg.setFont(font);
+        FontMetrics fm = pg.getFontMetrics();
+        Rectangle2D bounds = fm.getStringBounds(text, pg);
+        pg.dispose();
+
+        int pad = 2;
+        int width = Math.max(1, (int) Math.ceil(bounds.getWidth()) + 2 * pad);
+        int height = Math.max(1, fm.getAscent() + fm.getDescent() + 2 * pad);
+        int baselineY = pad + fm.getAscent();
+
+        BufferedImage img = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = img.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        g.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
+        g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+        g.setFont(font);
+        g.setColor(color);
+        g.drawString(text, pad, baselineY);
+        g.dispose();
+
+        Image pdfImage = Image.getInstance(img, (Color) null);
+        pdfImage.scaleAbsolute(width / scale, height / scale);
+        float descentPt = (height - baselineY) / scale;
+        return new RenderedText(pdfImage, descentPt);
+    }
+
+    private static java.awt.Font loadAwtFont(String classpathResource) {
+        try (InputStream is = PdfGeneratorService.class.getResourceAsStream(classpathResource)) {
+            if (is == null) {
+                log.warn("AWT font resource {} not found; Indic text will use plain-text fallback", classpathResource);
+                return null;
+            }
+            return java.awt.Font.createFont(java.awt.Font.TRUETYPE_FONT, is);
+        } catch (Throwable t) {
+            log.warn("Could not load AWT font {}; Indic text will use plain-text fallback: {}", classpathResource, t.toString());
+            return null;
+        }
     }
 
     /**
