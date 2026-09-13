@@ -12,6 +12,10 @@ public class Employee {
     private String esiNo;
     private String designation;
     private String daysWorked;
+    private String pl;             // earned/privilege leave days
+    private String cl;             // casual leave days
+    private String festivalLeave;  // festival / special leave days
+    private String totalDays;
     private String basicRate;
     private String basicAmount;
     private String da;
@@ -61,6 +65,18 @@ public class Employee {
 
     public String getDaysWorked() { return daysWorked; }
     public void setDaysWorked(String daysWorked) { this.daysWorked = daysWorked; }
+
+    public String getPl() { return pl; }
+    public void setPl(String pl) { this.pl = pl; }
+
+    public String getCl() { return cl; }
+    public void setCl(String cl) { this.cl = cl; }
+
+    public String getFestivalLeave() { return festivalLeave; }
+    public void setFestivalLeave(String festivalLeave) { this.festivalLeave = festivalLeave; }
+
+    public String getTotalDays() { return totalDays; }
+    public void setTotalDays(String totalDays) { this.totalDays = totalDays; }
 
     public String getBasicRate() { return basicRate; }
     public void setBasicRate(String basicRate) { this.basicRate = basicRate; }

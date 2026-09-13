@@ -227,9 +227,21 @@ public class PdfGeneratorService {
                 engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
         addInfoCell(infoTable, "Days Worked", "कार्य दिवसों की संख्या", "কাজের দিনের সংখ্যা", defaultVal(emp.getDaysWorked(), "0"),
                 engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
+        addInfoCell(infoTable, "PL (Earned Leave)", "अर्जित अवकाश", "অর্জিত ছুটি", defaultVal(emp.getPl(), "0"),
+                engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
+        addInfoCell(infoTable, "CL (Casual Leave)", "कैज़ुअल लीव", "ক্যাজুয়াল লিভ", defaultVal(emp.getCl(), "0"),
+                engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
+        addInfoCell(infoTable, "Festival Holiday", "त्यौहार की छुट्टी", "উৎসবের ছুটি", defaultVal(emp.getFestivalLeave(), "0"),
+                engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
+        addInfoCell(infoTable, "Total Days", "कुल दिन", "মোট দিন", defaultVal(emp.getTotalDays(), "0"),
+                engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
         addInfoCell(infoTable, "Basic Rate", "बेसिक रेट", "বেসিক রেট", "Rs. " + formatAmount(defaultVal(emp.getBasicRate(), "0.00")),
                 engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
         addInfoCell(infoTable, "Gross Earnings", "कुल भुगतान की गई राशि", "মোট প্রদত্ত অর্থের পরিমাণ", "Rs. " + formatAmount(defaultVal(emp.getGrossEarnings(), "0.00")),
+                engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
+        addInfoCell(infoTable, "ESIC Salary", "ईएसआईसी वेतन", "ইএসআইসি বেতন", "Rs. " + formatAmount(defaultVal(emp.getEsicSalary(), "0.00")),
+                engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
+        addInfoCell(infoTable, "EPF Salary", "कुल ईपीएफ वेतन", "মোট ইপিএফ বেতন", "Rs. " + formatAmount(defaultVal(emp.getEpfoSalary(), "0.00")),
                 engBoldFont, hinSmallFont, benSmallFont, engBoldFont);
 
         document.add(infoTable);
@@ -249,35 +261,27 @@ public class PdfGeneratorService {
         addHeaderCell(payTable, "Deductions Description", "कटौती", "কর্তনের বিবরণ", engWhiteBoldFont, hinWhiteBoldFont, benWhiteBoldFont);
         addHeaderCell(payTable, "Amount (Rs.)", "राशि", "টাকা", engWhiteBoldFont, hinWhiteBoldFont, benWhiteBoldFont);
 
-        // Build Itemized Earnings List: [engLabel, hinLabel, benLabel, amount]
+        // Every wage head from the Form XVII / PAYSILP sheet is listed, showing 0.00 when not
+        // applicable, so the payslip is a complete statutory record rather than only the
+        // non-zero lines.
         List<String[]> earnings = new ArrayList<>();
-        addIfPresentTrilingual(earnings, "Basic Wages", "बेसिक वेतन", "বেসিক মজুরি", emp.getBasicAmount());
-        addIfPresentTrilingual(earnings, "Dearness Allowance (DA)", "डीए", "ডিএ", emp.getDa());
-        addIfPresentTrilingual(earnings, "House Rent Allowance (HRA)", "एचआरए", "বাড়িভাড়া ভাতা", emp.getHra());
-        addIfPresentTrilingual(earnings, "Washing Allowance", "धुलाई भत्ता", "ধোয়ার ভাতা", emp.getWashingAllowance());
-        addIfPresentTrilingual(earnings, "Fuel Allowance", "फ्यूल अलाउंस", "ফুয়েল অ্যালাউন্স", emp.getFuelAllowance());
-        addIfPresentTrilingual(earnings, "Attendance Allowance", "अटेंडेंस अलाउंस", "অ্যাটেনডেন্স অ্যালাউন্স", emp.getAttendanceAllowance());
-        addIfPresentTrilingual(earnings, "Food Allowance", "फूड अलाउंस", "ফুড অ্যালাউন্স", emp.getFoodAllowance());
-        addIfPresentTrilingual(earnings, "Gratuity", "ग्रेच्युटी", "গ্র্যাচুইটি", emp.getGratuity());
-        addIfPresentTrilingual(earnings, "Overtime Amount", "ओटी अमाउंट", "ওটি এমাউন্ট", emp.getOvertimeAmount());
-        addIfPresentTrilingual(earnings, "Extra Production", "टननेज", "টনেজ", emp.getExtraProduction());
-        addIfPresentTrilingual(earnings, "Performance Incentive", "इंसेंटिव", "ইনসেনটিভ", emp.getPerformanceIncentive());
-        addIfPresentTrilingual(earnings, "Other Allowances", "अन्य भत्ते", "অন্যান্য ভাতা", emp.getOtherAllowances());
+        addRow(earnings, "Basic Wages", "बेसिक वेतन", "বেসিক মজুরি", emp.getBasicAmount());
+        addRow(earnings, "Dearness Allowance (DA)", "डीए", "ডিএ", emp.getDa());
+        addRow(earnings, "House Rent Allowance (HRA)", "एचआरए", "বাড়িভাড়া ভাতা", emp.getHra());
+        addRow(earnings, "Washing Allowance", "धुलाई भत्ता", "ধোয়ার ভাতা", emp.getWashingAllowance());
+        addRow(earnings, "Fuel Allowance", "फ्यूल अलाउंस", "ফুয়েল অ্যালাউন্স", emp.getFuelAllowance());
+        addRow(earnings, "Attendance Allowance", "अटेंडेंस अलाउंस", "অ্যাটেনডেন্স অ্যালাউন্স", emp.getAttendanceAllowance());
+        addRow(earnings, "Food Allowance", "फूड अलाउंस", "ফুড অ্যালাউন্স", emp.getFoodAllowance());
+        addRow(earnings, "Gratuity", "ग्रेच्युटी", "গ্র্যাচুইটি", emp.getGratuity());
+        addRow(earnings, "Overtime Hours", "ओटी", "ওটি", emp.getOvertimeDays());
+        addRow(earnings, "Overtime Amount", "ओटी अमाउंट", "ওটি এমাউন্ট", emp.getOvertimeAmount());
+        addRow(earnings, "Extra Production (Tons)", "टननेज", "টনেজ", emp.getExtraProduction());
+        addRow(earnings, "Performance Incentive", "इंसेंटिव", "ইনসেনটিভ", emp.getPerformanceIncentive());
 
-        if (earnings.isEmpty()) {
-            earnings.add(new String[]{"Basic Wages", "बेसिक वेतन", "বেসিক মজুরি", "0.00"});
-        }
-
-        // Build Itemized Deductions List: [engLabel, hinLabel, benLabel, amount]
         List<String[]> deductions = new ArrayList<>();
-        addIfPresentTrilingual(deductions, "E.P.F. Contribution", "पीएफ", "পিএফ", emp.getEpfDeduction());
-        addIfPresentTrilingual(deductions, "E.S.I.C. Contribution", "ईएसआई", "ইএসআই", emp.getEsiDeduction());
-        addIfPresentTrilingual(deductions, "Advance Deduction", "एडवांस", "অ্যাডভান্স", emp.getAdvanceDeduction());
-        addIfPresentTrilingual(deductions, "Other Deductions", "अन्य कटौती", "অন্যান্য কর্তন", emp.getOtherDeductions());
-
-        if (deductions.isEmpty()) {
-            deductions.add(new String[]{"E.P.F. Contribution", "पीएफ", "পিএফ", "0.00"});
-        }
+        addRow(deductions, "E.P.F. Contribution", "पीएफ", "পিএফ", emp.getEpfDeduction());
+        addRow(deductions, "E.S.I.C. Contribution", "ईएसआई", "ইএসআই", emp.getEsiDeduction());
+        addRow(deductions, "Advance Deduction", "एडवांस", "অ্যাডভান্স", emp.getAdvanceDeduction());
 
         // Render Balanced Table Rows
         int maxRows = Math.max(earnings.size(), deductions.size());
@@ -479,10 +483,8 @@ public class PdfGeneratorService {
         }
     }
 
-    private void addIfPresentTrilingual(List<String[]> list, String engLabel, String hinLabel, String benLabel, String val) {
-        if (val != null && !val.isBlank() && !val.equals("0.00") && !val.equals("0")) {
-            list.add(new String[]{engLabel, hinLabel, benLabel, formatAmount(val)});
-        }
+    private void addRow(List<String[]> list, String engLabel, String hinLabel, String benLabel, String val) {
+        list.add(new String[]{engLabel, hinLabel, benLabel, formatAmount(defaultVal(val, "0.00"))});
     }
 
     private String defaultVal(String val, String fallback) {

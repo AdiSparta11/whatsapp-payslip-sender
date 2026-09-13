@@ -45,6 +45,9 @@ public class ExcelParserService {
     private static final int COL_ESI = 3;                 // D
     private static final int COL_DESIGNATION = 4;         // E
     private static final int COL_DAYS_WORKED = 5;         // F
+    private static final int COL_PL = 6;                  // G
+    private static final int COL_CL = 7;                  // H
+    private static final int COL_FESTIVAL_LEAVE = 8;      // I
     private static final int COL_TOTAL_DAYS = 9;          // J
     private static final int COL_DAILY_RATE = 10;         // K
     private static final int COL_BASIC = 11;              // L
@@ -293,6 +296,10 @@ public class ExcelParserService {
             String daysVal = getCellString(row, columnMap, "no. of days worked", "no of days worked", "days worked", "days");
             if (daysVal == null) daysVal = getCellByIndex(row, COL_DAYS_WORKED);
             emp.setDaysWorked(daysVal);
+            emp.setPl(getCellByIndex(row, COL_PL));
+            emp.setCl(getCellByIndex(row, COL_CL));
+            emp.setFestivalLeave(getCellByIndex(row, COL_FESTIVAL_LEAVE));
+            emp.setTotalDays(getCellByIndex(row, COL_TOTAL_DAYS));
 
             // Wage and deduction amount columns (fixed POI indices for Form XVII)
             emp.setBasicRate(getCellByIndex(row, COL_DAILY_RATE));
